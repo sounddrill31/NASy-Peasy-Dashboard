@@ -1,61 +1,81 @@
 {% extends "base.html" %}
-{% block title %}Deployed Apps - Nasypeasy{% endblock %}
-{% block content %}
-<div class="mb-8 flex justify-between items-end border-b-4 border-black pb-4">
-    <h2 class="text-3xl font-bold uppercase">Deployed Apps</h2>
-    <a href="{{ url_for('apps.list_apps') }}" class="text-sm font-bold hover:underline decoration-2">+ ADD MORE</a>
+{% block title %}Deployed Apps - NASYPEASY{% endblock %}
+{% block body %}
+<div class="mb-6 sm:mb-8 border-b-4 border-black pb-3 sm:pb-4 flex justify-between items-end">
+    <h2 class="text-2xl sm:text-3xl md:text-4xl font-bold uppercase tracking-tighter">Deployed Apps</h2>
+    <a href="{{ url_for('apps.list_apps') }}" class="text-[10px] sm:text-xs font-bold hover:underline decoration-2">+ ADD MORE</a>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
     {% for app in deployed %}
-    <div class="border-4 border-black p-6 flex flex-col" data-app="{{ app.name }}">
-        <div class="mb-4">
-            <h4 class="text-2xl font-bold uppercase">{{ app.name }}</h4>
+    <div class="border-4 border-black p-4 sm:p-6 flex flex-col" data-app="{{ app.name }}">
+        <div class="mb-3 sm:mb-4">
+            <h4 class="text-lg sm:text-xl md:text-2xl font-bold uppercase">{{ app.name }}</h4>
             <div class="mt-2 flex items-center gap-2">
-                <span class="w-3 h-3 rounded-full inline-block {% if app.status == 'running' %}bg-black{% else %}bg-gray-300{% endif %}"></span>
-                <span class="text-sm font-bold uppercase">{{ app.status }}</span>
+                <span class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full inline-block {% if app.status == 'running' %}bg-black{% else %}bg-gray-300{% endif %}"></span>
+                <span class="text-[10px] sm:text-sm font-bold uppercase">{{ app.status }}</span>
             </div>
             {% if app.port %}
-            <div class="mt-1 text-sm text-gray-600 font-mono">Port: {{ app.port }}</div>
+            <div class="mt-1 text-[10px] sm:text-sm text-gray-600 font-mono">Port: {{ app.port }}</div>
             {% endif %}
             {% if app.created_at %}
-            <div class="mt-1 text-xs text-gray-400">Deployed: {{ app.created_at }}</div>
+            <div class="mt-1 text-[10px] text-gray-400">Deployed: {{ app.created_at }}</div>
             {% endif %}
         </div>
-        <div class="mt-auto pt-4 border-t-2 border-black flex flex-wrap gap-2">
+        <div class="mt-auto pt-3 sm:pt-4 border-t-2 border-black flex flex-wrap gap-1.5 sm:gap-2">
             {% if app.port and app.status == 'running' %}
-            <a href="http://{{ request.host.split(':')[0] }}:{{ app.port }}" target="_blank"
-               class="flex-1 min-w-[100px] bg-black text-white text-center font-bold p-3 border-2 border-black hover:bg-white hover:text-black transition-colors uppercase text-sm">
-                Open &nearr;
-            </a>
+            <form method="GET" action="http://{{ request.host.split(':')[0] }}:{{ app.port }}" target="_blank" class="flex-1 min-w-[70px]">
+                <button type="submit"
+                        class="w-full bg-black text-white font-bold p-2 sm:p-3 border-2 border-black hover:bg-white hover:text-black transition-colors uppercase text-[10px] sm:text-sm">
+                    Open &nearr;
+                </button>
+            </form>
             {% endif %}
-            <a href="{{ url_for('apps.deployed_logs', name=app.folder) }}"
-               class="flex-1 min-w-[80px] bg-white text-black text-center font-bold p-3 border-2 border-black hover:bg-black hover:text-white transition-colors uppercase text-sm">
-                Logs
-            </a>
-            <form method="POST" action="{{ url_for('apps.deployed_down', name=app.folder) }}" class="flex-1 min-w-[80px]">
+            <form method="GET" action="{{ url_for('apps.deployed_logs', name=app.folder) }}" class="flex-1 min-w-[70px]">
+                <button type="submit"
+                        class="w-full bg-white text-black font-bold p-2 sm:p-3 border-2 border-black hover:bg-black hover:text-white transition-colors uppercase text-[10px] sm:text-sm">
+                    Logs
+                </button>
+            </form>
+            {% if app.status == 'running' %}
+            <form method="POST" action="{{ url_for('apps.deployed_down', name=app.folder) }}" class="flex-1 min-w-[70px]">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" onclick="return confirm('Stop {{ app.name }}?')"
-                        class="w-full bg-white text-black font-bold p-3 border-2 border-black hover:bg-black hover:text-white transition-colors uppercase text-sm">
+                        class="w-full bg-white text-black font-bold p-2 sm:p-3 border-2 border-black hover:bg-black hover:text-white transition-colors uppercase text-[10px] sm:text-sm">
                     Stop
                 </button>
             </form>
-            <form method="POST" action="{{ url_for('apps.deployed_delete', name=app.folder) }}" class="flex-1 min-w-[80px]">
+            {% else %}
+            <form method="POST" action="{{ url_for('apps.deployed_up', name=app.folder) }}" class="flex-1 min-w-[70px]">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit"
+                        class="w-full bg-black text-white font-bold p-2 sm:p-3 border-2 border-black hover:bg-white hover:text-black transition-colors uppercase text-[10px] sm:text-sm">
+                    Start
+                </button>
+            </form>
+            {% endif %}
+            <form method="GET" action="{{ url_for('apps.app_detail', name=app.folder) }}" class="flex-1 min-w-[70px]">
+                <button type="submit"
+                        class="w-full bg-white text-black font-bold p-2 sm:p-3 border-2 border-black hover:bg-black hover:text-white transition-colors uppercase text-[10px] sm:text-sm">
+                    Edit
+                </button>
+            </form>
+            <form method="POST" action="{{ url_for('apps.deployed_delete', name=app.folder) }}" class="flex-1 min-w-[70px]">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" onclick="return confirm('Delete {{ app.name }}? This will remove all containers and data.')"
-                        class="w-full bg-red-700 text-white font-bold p-3 border-2 border-black hover:bg-red-800 transition-colors uppercase text-sm">
+                        class="w-full bg-red-700 text-white font-bold p-2 sm:p-3 border-2 border-black hover:bg-red-800 transition-colors uppercase text-[10px] sm:text-sm">
                     Delete
                 </button>
-                <label class="flex items-center justify-center gap-1 text-[10px] mt-1 cursor-pointer select-none">
+                <label class="flex items-center justify-center gap-1 text-[8px] sm:text-[10px] mt-1 cursor-pointer select-none">
                     <input type="checkbox" name="remove_volumes" value="1"> rm volumes
                 </label>
             </form>
         </div>
     </div>
     {% else %}
-    <div class="col-span-full text-center py-16 border-4 border-dashed border-black">
-        <p class="text-2xl font-bold uppercase text-gray-400">No deployed apps yet.</p>
-        <a href="{{ url_for('apps.list_apps') }}" class="mt-6 inline-block bg-black text-white font-bold p-4 border-4 border-black hover:bg-white hover:text-black transition-colors uppercase tracking-widest">
+    <div class="col-span-full text-center py-12 sm:py-16 border-4 border-dashed border-black">
+        <p class="text-lg sm:text-2xl font-bold uppercase text-gray-400">No deployed apps yet.</p>
+        <a href="{{ url_for('apps.list_apps') }}" class="mt-4 sm:mt-6 inline-block bg-black text-white font-bold p-3 sm:p-4 border-4 border-black hover:bg-white hover:text-black transition-colors uppercase tracking-widest text-xs sm:text-sm">
             Browse App Store
         </a>
     </div>

@@ -6,5 +6,6 @@ services:
       - "8080:8080"
     volumes:
       - /:/srv:ro
+      - $FILES_DATA:/data
     environment:
       - FB_PORT=8080

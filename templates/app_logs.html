@@ -1,37 +1,39 @@
 {% extends "base.html" %}
-{% block title %}Logs: {{ name }} - Nasypeasy{% endblock %}
-{% block content %}
-<div class="mb-8 flex justify-between items-end border-b-4 border-black pb-4">
-    <h2 class="text-3xl font-bold uppercase">Logs: {{ name }}</h2>
-    <a href="{{ url_for('apps.deployed_list') }}" class="text-sm font-bold hover:underline decoration-2">&lt;- BACK TO DEPLOYED</a>
+{% block title %}Logs: {{ name }} - NASYPEASY{% endblock %}
+{% block body %}
+<div class="mb-4 sm:mb-6 border-b-4 border-black pb-3 sm:pb-4 flex justify-between items-end">
+    <h2 class="text-lg sm:text-2xl md:text-3xl font-bold uppercase tracking-tighter">Logs: {{ name }}</h2>
+    <a href="{{ url_for('apps.deployed_list') }}" class="text-[10px] sm:text-xs font-bold hover:underline decoration-2">&larr; BACK TO DEPLOYED</a>
 </div>
 
 <div class="border-4 border-black">
-    <div class="bg-black text-white px-4 py-2 font-bold uppercase text-sm flex justify-between items-center">
+    <div class="bg-black text-white px-3 sm:px-4 py-2 font-bold uppercase text-[10px] sm:text-sm flex justify-between items-center">
         <span>Output</span>
-        <button id="refresh-btn" class="text-xs bg-white text-black px-3 py-1 hover:bg-gray-200 transition-colors font-bold uppercase">Refresh</button>
+        <button id="refresh-btn" class="text-[10px] bg-white text-black px-2 sm:px-3 py-1 hover:bg-gray-200 transition-colors font-bold uppercase">Refresh</button>
     </div>
-    <pre id="log-output" class="p-4 font-mono text-sm leading-relaxed overflow-x-auto min-h-[40vh] max-h-[70vh] overflow-y-auto bg-gray-50"></pre>
+    <pre id="log-output" class="p-3 sm:p-4 font-mono text-[10px] sm:text-xs leading-relaxed overflow-x-auto min-h-[40vh] max-h-[70vh] overflow-y-auto bg-gray-50 whitespace-pre-wrap break-all"></pre>
 </div>
 
 <script>
-const name = '{{ name }}';
-const logEl = document.getElementById('log-output');
+(function() {
+    var appName = '{{ name }}';
+    var logEl = document.getElementById('log-output');
 
-function fetchLogs() {
-    logEl.textContent = 'Loading...';
-    fetch(`/deployed/${encodeURIComponent(name)}/logs/raw`)
-        .then(r => r.text())
-        .then(text => {
-            logEl.textContent = text || '(no output)';
-        })
-        .catch(err => {
-            logEl.textContent = 'Error: ' + err;
-        });
-}
+    function fetchLogs() {
+        logEl.textContent = 'Loading...';
+        fetch('/deployed/' + encodeURIComponent(appName) + '/logs/raw')
+            .then(function(r) { return r.text(); })
+            .then(function(text) {
+                logEl.textContent = text || '(no output)';
+            })
+            .catch(function(err) {
+                logEl.textContent = 'Error: ' + err;
+            });
+    }
 
-document.getElementById('refresh-btn').addEventListener('click', fetchLogs);
-fetchLogs();
-setInterval(fetchLogs, 10000);
+    document.getElementById('refresh-btn').addEventListener('click', fetchLogs);
+    fetchLogs();
+    setInterval(fetchLogs, 10000);
+})();
 </script>
 {% endblock %}

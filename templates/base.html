@@ -3,61 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Nasypeasy{% endblock %}</title>
+    <title>{% block title %}NASYPEASY{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <script>
       tailwind.config = {
         theme: {
           extend: {
-            fontFamily: {
-              mono: ["Space Mono", "monospace"],
-            },
+            fontFamily: { mono: ["Space Mono", "monospace"] },
           },
         },
       };
     </script>
     <style>
       @import url("https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap");
-      * {
-        font-family: "Space Mono", monospace;
-      }
+      * { font-family: "Space Mono", monospace; }
     </style>
+    {% block head %}{% endblock %}
 </head>
-<body class="bg-white text-black min-h-screen p-8">
-    <header class="mb-12 border-b-2 border-black pb-4 flex justify-between items-end">
-        <h1 class="text-4xl font-bold uppercase tracking-tighter">
-            <a href="{{ url_for('index') }}" class="hover:underline decoration-4 underline-offset-4">Nasypeasy</a>
-        </h1>
-        <nav class="space-x-4 text-sm font-bold">
-            {% if current_user.is_authenticated %}
-                <a href="{{ url_for('apps.deployed_list') }}" class="hover:bg-black hover:text-white px-2 py-1 border-2 border-black transition-colors uppercase">DEPLOYED</a>
-                <a href="{{ url_for('apps.list_apps') }}" class="hover:bg-black hover:text-white px-2 py-1 border-2 border-black transition-colors uppercase">APPS</a>
-                <span class="bg-black text-white px-2 py-1 uppercase">{{ current_user.username }}</span>
-                <a href="{{ url_for('auth.logout') }}" class="hover:bg-black hover:text-white px-2 py-1 border-2 border-black transition-colors">LOGOUT</a>
-            {% else %}
-                <a href="{{ url_for('auth.login') }}" class="hover:bg-black hover:text-white px-2 py-1 border-2 border-black transition-colors">LOGIN</a>
-            {% endif %}
-        </nav>
-    </header>
+<body class="bg-white text-black min-h-screen flex flex-col">
 
-    <main class="max-w-4xl mx-auto">
-        {% with messages = get_flashed_messages() %}
+{% block content %}
+{% if current_user.is_authenticated %}
+{% set active_page = 'dashboard' if request.path.startswith('/dashboard')
+               else 'apps' if request.path.startswith('/apps')
+               else 'deployed' if request.path.startswith('/deployed')
+               else 'volumes' if request.path.startswith('/volumes')
+               else '' %}
+
+<header class="fixed top-0 left-0 w-full h-14 bg-white border-b-2 border-black flex items-center justify-between px-3 sm:px-4 z-50">
+    <div class="flex items-center gap-2 sm:gap-3">
+        <button id="sidebar-toggle" type="button" class="md:hidden w-10 h-10 flex items-center justify-center border-2 border-black hover:bg-black hover:text-white transition-colors" aria-label="Toggle sidebar">
+            <i class="fas fa-bars text-sm"></i>
+        </button>
+        <a href="{{ url_for('dashboard') }}" class="text-base sm:text-lg font-bold uppercase tracking-tighter whitespace-nowrap">NASYPEASY</a>
+    </div>
+    <div class="flex items-center gap-2 sm:gap-3 text-sm">
+        <span class="hidden sm:inline bg-black text-white px-2 py-1 uppercase font-bold text-xs">{{ current_user.username }}</span>
+        <a href="{{ url_for('auth.logout') }}" class="border-2 border-black px-2 sm:px-3 py-1.5 hover:bg-black hover:text-white transition-colors uppercase font-bold text-xs whitespace-nowrap">LOGOUT</a>
+    </div>
+</header>
+
+<div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden"></div>
+
+<aside id="sidebar" class="fixed top-14 left-0 w-56 h-[calc(100vh-3.5rem)] bg-white border-r-2 border-black z-40 overflow-y-auto -translate-x-full md:translate-x-0 transition-transform duration-200">
+    <nav class="flex flex-col py-2">
+        <a href="{{ url_for('dashboard') }}" class="flex items-center gap-3 px-4 py-3.5 border-b border-black hover:bg-black hover:text-white transition-colors uppercase text-xs sm:text-sm font-bold min-h-11 {% if active_page == 'dashboard' %}bg-black text-white{% endif %}">
+            <i class="fas fa-chart-pie w-5 text-center text-sm"></i> Dashboard
+        </a>
+        <a href="{{ url_for('apps.list_apps') }}" class="flex items-center gap-3 px-4 py-3.5 border-b border-black hover:bg-black hover:text-white transition-colors uppercase text-xs sm:text-sm font-bold min-h-11 {% if active_page == 'apps' %}bg-black text-white{% endif %}">
+            <i class="fas fa-cube w-5 text-center text-sm"></i> App Store
+        </a>
+        <a href="{{ url_for('apps.deployed_list') }}" class="flex items-center gap-3 px-4 py-3.5 border-b border-black hover:bg-black hover:text-white transition-colors uppercase text-xs sm:text-sm font-bold min-h-11 {% if active_page == 'deployed' %}bg-black text-white{% endif %}">
+            <i class="fas fa-play w-5 text-center text-sm"></i> Deployed
+        </a>
+        <a href="{{ url_for('apps.volume_list') }}" class="flex items-center gap-3 px-4 py-3.5 border-b border-black hover:bg-black hover:text-white transition-colors uppercase text-xs sm:text-sm font-bold min-h-11 {% if active_page == 'volumes' %}bg-black text-white{% endif %}">
+            <i class="fas fa-database w-5 text-center text-sm"></i> Volumes
+        </a>
+    </nav>
+</aside>
+<main class="flex-1 pt-14 md:pl-56 min-h-screen">
+    <div class="p-3 sm:p-6 md:p-8 max-w-6xl">
+        {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <div class="mb-8 space-y-2">
-                    {% for message in messages %}
-                        <div class="bg-black text-white p-4 font-bold border-l-8 border-gray-400">{{ message }}</div>
+                <div class="mb-4 sm:mb-6 space-y-2">
+                    {% for category, message in messages %}
+                        <div class="bg-black text-white p-3 sm:p-4 font-bold border-l-8 {% if category == 'error' %}border-red-500{% else %}border-gray-400{% endif %} text-sm sm:text-base">{{ message }}</div>
                     {% endfor %}
                 </div>
             {% endif %}
         {% endwith %}
+        {{ self.body() }}
+    </div>
+</main>
 
-        {% block content %}{% endblock %}
-    </main>
+{% if active_page is defined %}
+<nav class="md:hidden fixed bottom-0 left-0 w-full h-16 bg-white border-t-2 border-black z-50 flex">
+    <a href="{{ url_for('dashboard') }}" class="flex-1 flex flex-col items-center justify-center text-[10px] font-bold uppercase border-r border-black hover:bg-black hover:text-white transition-colors min-h-16 {% if active_page == 'dashboard' %}bg-black text-white{% endif %}">
+        <i class="fas fa-chart-pie text-base mb-0.5"></i> DASH
+    </a>
+    <a href="{{ url_for('apps.list_apps') }}" class="flex-1 flex flex-col items-center justify-center text-[10px] font-bold uppercase border-r border-black hover:bg-black hover:text-white transition-colors min-h-16 {% if active_page == 'apps' %}bg-black text-white{% endif %}">
+        <i class="fas fa-cube text-base mb-0.5"></i> APPS
+    </a>
+    <a href="{{ url_for('apps.deployed_list') }}" class="flex-1 flex flex-col items-center justify-center text-[10px] font-bold uppercase border-r border-black hover:bg-black hover:text-white transition-colors min-h-16 {% if active_page == 'deployed' %}bg-black text-white{% endif %}">
+        <i class="fas fa-play text-base mb-0.5"></i> DEPLOY
+    </a>
+    <a href="{{ url_for('apps.volume_list') }}" class="flex-1 flex flex-col items-center justify-center text-[10px] font-bold uppercase hover:bg-black hover:text-white transition-colors min-h-16 {% if active_page == 'volumes' %}bg-black text-white{% endif %}">
+        <i class="fas fa-database text-base mb-0.5"></i> VOLS
+    </a>
+</nav>
 
-    <footer class="mt-24 pt-8 border-t-2 border-black text-xs text-center font-bold">
-        <p>NASYPEASY &copy; 2026. THE SELFHOSTING OS DASHBOARD FOR THE REST OF US.</p>
-        <p class="mt-2">DESIGNED WITH <a href="https://github.com/layogtima/mono" class="underline decoration-2">MONO</a></p>
-    </footer>
+<div class="md:hidden h-16"></div>
+
+<script>
+(function() {
+    var toggle = document.getElementById('sidebar-toggle');
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('sidebar-overlay');
+    if (toggle && sidebar && overlay) {
+        toggle.addEventListener('click', function() {
+            sidebar.classList.toggle('-translate-x-full');
+            overlay.classList.toggle('hidden');
+        });
+        overlay.addEventListener('click', function() {
+            sidebar.classList.add('-translate-x-full');
+            overlay.classList.add('hidden');
+        });
+    }
+})();
+</script>
+{% endif %}
+
+{% else %}
+<main class="flex-1 flex items-center justify-center p-4 min-h-screen">
+    {{ self.body() }}
+</main>
+{% endif %}
+{% endblock %}
+
 </body>
 </html>

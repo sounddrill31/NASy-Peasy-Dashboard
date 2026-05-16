@@ -208,7 +208,7 @@ class DeployHandler(BaseHTTPRequestHandler):
                 return
             try:
                 result = subprocess.run(
-                    [SYSTEM_PODMAN_COMPOSE, '-f', compose_file, 'up', '-d'],
+                    [SYSTEM_PODMAN_COMPOSE, '-f', compose_file, '-p', f'nasypeasy-{folder}', 'up', '-d'],
                     capture_output=True, text=True, timeout=60
                 )
                 if result.returncode != 0:
@@ -228,7 +228,27 @@ class DeployHandler(BaseHTTPRequestHandler):
                 return
             try:
                 result = subprocess.run(
-                    [SYSTEM_PODMAN_COMPOSE, '-f', compose_file, 'down'],
+                    [SYSTEM_PODMAN_COMPOSE, '-f', compose_file, '-p', f'nasypeasy-{name}', 'down'],
+                    capture_output=True, text=True, timeout=60
+                )
+                if result.returncode != 0:
+                    self._send_json({'error': result.stderr or result.stdout}, 500)
+                    return
+                self._send_json({'ok': True, 'output': result.stdout})
+            except Exception as e:
+                self._send_json({'error': str(e)}, 500)
+            return
+
+        if self.path.startswith('/api/deployed/') and self.path.endswith('/up'):
+            name = self.path.split('/')[3]
+            app_dir = os.path.join(PROJECT_DIR, 'templates', 'apps', name)
+            compose_file = os.path.join(app_dir, 'docker-compose.yaml')
+            if not os.path.isfile(compose_file):
+                self._send_json({'error': 'compose file not found'}, 400)
+                return
+            try:
+                result = subprocess.run(
+                    [SYSTEM_PODMAN_COMPOSE, '-f', compose_file, '-p', f'nasypeasy-{name}', 'up', '-d'],
                     capture_output=True, text=True, timeout=60
                 )
                 if result.returncode != 0:
@@ -248,7 +268,7 @@ class DeployHandler(BaseHTTPRequestHandler):
                 self._send_json({'error': 'compose file not found'}, 400)
                 return
             try:
-                cmd = [SYSTEM_PODMAN_COMPOSE, '-f', compose_file, 'down']
+                cmd = [SYSTEM_PODMAN_COMPOSE, '-f', compose_file, '-p', f'nasypeasy-{name}', 'down']
                 if remove_volumes:
                     cmd.append('-v')
                 subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -268,7 +288,7 @@ class DeployHandler(BaseHTTPRequestHandler):
             compose_file = os.path.join(app_dir, 'docker-compose.yaml')
             try:
                 result = subprocess.run(
-                    [SYSTEM_PODMAN_COMPOSE, '-f', compose_file, 'ps', '--format', 'json'],
+                    [SYSTEM_PODMAN_COMPOSE, '-f', compose_file, '-p', f'nasypeasy-{name}', 'ps', '--format', 'json'],
                     capture_output=True, text=True, timeout=10
                 )
                 if result.returncode == 0 and result.stdout.strip():

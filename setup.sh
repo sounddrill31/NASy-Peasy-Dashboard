@@ -8,27 +8,27 @@ SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 cat > .env <<EOF
 FLASK_SECRET_KEY=$SECRET_KEY
 EOF
-echo "[1/4] Secret key generated"
+echo "[1/5] Secret key generated"
 
 if ! command -v podman-compose &>/dev/null; then
     echo "WARNING: podman-compose not found. Install it: sudo zypper install podman podman-compose"
 fi
 
-# 2. Fix cgroup manager for rootless podman
-#echo "[2/5] Configuring podman cgroup manager..."
-#mkdir -p ~/.config/containers
-#cat > ~/.config/containers/containers.conf << 'EOF'
-#[engine]
-#cgroup_manager = "cgroupfs"
-#EOF
-#echo "  cgroupfs set"
-
-# 3. Install pixi dependencies
-echo "[2/4] Installing dependencies..."
+# 2. Install pixi dependencies
+echo "[2/5] Installing dependencies..."
 pixi install
 
+# 3. Shared directory for app data
+echo "[3/5] Configuring shared directory..."
+read -r -p "Enter a shared directory path for app data (press enter to skip): " SHARED_DIR
+if [ -n "$SHARED_DIR" ]; then
+    mkdir -p "$SHARED_DIR"
+    pixi run add-shared-dir "$SHARED_DIR"
+    echo "  Shared directory set to $SHARED_DIR"
+fi
+
 # 4. Create a user
-echo "[3/4] Creating admin user..."
+echo "[4/5] Creating admin user..."
 echo ""
 read -r -p "Enter username [admin]: " USERNAME
 USERNAME="${USERNAME:-admin}"
@@ -44,7 +44,7 @@ pixi run create-user "$USERNAME" "$PASSWORD"
 
 # 5. Tailscale API key (optional)
 echo ""
-echo "[4/4] Optional: Tailscale API key for remote access"
+echo "[5/5] Optional: Tailscale API key for remote access"
 read -r -p "Tailscale API key (press enter to skip): " TS_KEY
 if [ -n "$TS_KEY" ]; then
     read -r -p "Tailscale tailnet name: " TS_TAILNET

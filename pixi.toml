@@ -23,3 +23,4 @@ server-clean = {cmd="podman-compose -f docker-compose.yml up -d --build", depend
 start = "python app.py"
 create-user = "python create_user.py"
 host-agent = "python host_agent.py --daemon"
+add-shared-dir = "python add_shared_dir.py {args}"

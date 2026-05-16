@@ -1,35 +1,138 @@
 {% extends "base.html" %}
-{% block title %}Deploy {{ meta.name }} - Nasypeasy{% endblock %}
-{% block content %}
-<div class="mb-4 flex justify-between items-end border-b-4 border-black pb-4">
-    <h2 class="text-3xl font-bold uppercase">Deploy: {{ meta.name }}</h2>
-    <a href="{{ url_for('apps.list_apps') }}" class="text-sm font-bold hover:underline decoration-2">&lt;- BACK TO APPS</a>
+{% block title %}Deploy {{ meta.name }} - NASYPEASY{% endblock %}
+{% block head %}
+<style>
+.monaco-editor-container { height: 50vh; min-height: 300px; }
+@media (min-width: 768px) {
+    .monaco-editor-container { height: 60vh; }
+}
+.file-tree-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #e5e5e5;
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: all 0.15s;
+    min-height: 2.5rem;
+}
+.file-tree-item:hover { background: #000; color: #fff; }
+.file-tree-item.active { background: #000; color: #fff; }
+.file-tree-item .icon { width: 1rem; text-align: center; flex-shrink: 0; }
+.file-tree-item .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>
+{% endblock %}
+{% block body %}
+<div class="mb-4 sm:mb-6 border-b-4 border-black pb-3 sm:pb-4 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-2">
+    <div>
+        <h2 class="text-xl sm:text-3xl md:text-4xl font-bold uppercase tracking-tighter">Deploy: {{ meta.name }}</h2>
+        <p class="text-[10px] sm:text-xs text-gray-600 mt-1">{{ meta.description }}</p>
+    </div>
+    <a href="{{ url_for('apps.list_apps') }}" class="text-[10px] sm:text-xs font-bold hover:underline decoration-2 whitespace-nowrap">&larr; BACK TO APPS</a>
 </div>
-<p class="mb-6 text-sm text-gray-600">{{ meta.description }}</p>
 
 <form id="deploy-form" method="POST" action="{{ url_for('apps.deploy_app', name=name) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="border-4 border-black mb-4">
-        <div class="bg-black text-white px-4 py-2 font-bold uppercase text-sm flex justify-between items-center">
-            <span>docker-compose.yaml</span>
+
+    <!-- File Explorer + Editor -->
+    <div class="border-4 border-black mb-4 sm:mb-6">
+        <div class="bg-black text-white px-3 sm:px-4 py-2 font-bold uppercase text-[10px] sm:text-sm flex justify-between items-center">
+            <span id="active-filename">docker-compose.yaml</span>
             <div class="flex gap-2">
-                <button type="button" id="reset-btn" class="text-xs bg-white text-black px-2 py-1 hover:bg-gray-200 transition-colors">Reset</button>
+                <button type="button" id="resolve-toggle" class="text-[10px] bg-white text-black px-2 py-1 hover:bg-gray-200 transition-colors uppercase font-bold">Resolved</button>
+                <button type="button" id="reset-btn" class="text-[10px] bg-white text-black px-2 py-1 hover:bg-gray-200 transition-colors uppercase font-bold">Reset</button>
             </div>
         </div>
-        <div id="editor-container" style="height:60vh;"></div>
-        <textarea name="compose" id="compose-textarea" class="hidden">{{ compose }}</textarea>
+
+        <!-- Mobile file toggle -->
+        <button type="button" id="file-toggle" class="md:hidden w-full border-b-2 border-black p-2 text-[10px] font-bold uppercase hover:bg-gray-100 transition-colors">
+            <i class="fas fa-folder-open mr-1"></i> Files
+        </button>
+
+        <div class="flex flex-col md:flex-row">
+            <!-- File Tree -->
+            <div id="file-tree" class="hidden md:block md:w-48 lg:w-56 border-r-2 border-black bg-gray-50 overflow-y-auto max-h-[50vh] md:max-h-[60vh]">
+                {% for file in app_files %}
+                <div class="file-tree-item {% if file.name == 'docker-compose.yaml' %}active{% endif %}" data-file="{{ file.name }}" data-path="{{ file.path }}">
+                    <span class="icon"><i class="{% if file.is_dir %}fas fa-folder{% else %}fas fa-file{% endif %}"></i></span>
+                    <span class="name">{{ file.name }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            <!-- Mobile file list (hidden by default) -->
+            <div id="file-tree-mobile" class="hidden md:hidden border-b-2 border-black bg-gray-50 max-h-48 overflow-y-auto">
+                {% for file in app_files %}
+                <div class="file-tree-item {% if file.name == 'docker-compose.yaml' %}active{% endif %}" data-file="{{ file.name }}" data-path="{{ file.path }}">
+                    <span class="icon"><i class="{% if file.is_dir %}fas fa-folder{% else %}fas fa-file{% endif %}"></i></span>
+                    <span class="name">{{ file.name }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            <!-- Editor -->
+            <div class="flex-1">
+                <div id="editor-container" class="monaco-editor-container"></div>
+                <textarea name="compose" id="compose-textarea" class="hidden">{{ resolved_compose }}</textarea>
+                {% for file in app_files if file.name != 'docker-compose.yaml' %}
+                <textarea name="file_{{ file.name|replace('.', '_') }}" id="file-{{ file.name|replace('.', '_') }}" class="hidden" data-file="{{ file.name }}">{{ file.content }}</textarea>
+                {% endfor %}
+            </div>
+        </div>
     </div>
 
-    {% if dockerfile %}
-    <div class="border-4 border-black mb-4">
-        <div class="bg-black text-white px-4 py-2 font-bold uppercase text-sm">Dockerfile</div>
-        <pre class="p-4 text-sm font-mono overflow-x-auto bg-gray-50">{{ dockerfile }}</pre>
-        <textarea name="dockerfile" class="hidden">{{ dockerfile }}</textarea>
-    </div>
-    {% endif %}
+    <!-- Quick Volumes -->
+    <div class="border-4 border-black mb-4 sm:mb-6">
+        <div class="bg-black text-white px-3 sm:px-4 py-2 font-bold uppercase text-[10px] sm:text-sm">
+            Quick Volumes
+        </div>
+        <div class="p-3 sm:p-4 space-y-3">
+            <div class="flex flex-col sm:flex-row gap-2">
+                <select id="quick-shared-dir" class="flex-1 border-2 border-black p-2 text-[10px] font-bold uppercase bg-white focus:outline-none focus:ring-4 focus:ring-black/20">
+                    <option value="">SHARED DIR</option>
+                    {% for sd in shared_dirs %}
+                    <option value="{{ sd.id }}">{{ sd.path }}</option>
+                    {% endfor %}
+                </select>
+                <input type="text" id="quick-vol-name" placeholder="VOLUME NAME"
+                       class="flex-1 border-2 border-black p-2 text-[10px] font-bold uppercase placeholder:uppercase placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-black/20">
+                <button type="button" id="quick-vol-add"
+                        class="bg-black text-white font-bold px-4 py-2 hover:bg-white hover:text-black border-2 border-black transition-colors uppercase tracking-wider text-[10px] whitespace-nowrap">
+                    Add &amp; Attach
+                </button>
+            </div>
 
-    <div class="flex gap-4">
-        <button type="submit" class="flex-1 bg-black text-white font-bold p-4 border-4 border-black hover:bg-white hover:text-black transition-colors uppercase tracking-widest text-lg">
+            {% if volume_refs %}
+            <div class="border-t-2 border-dashed border-black pt-3">
+                <div class="text-[10px] font-bold uppercase text-gray-500 mb-2">Referenced in Compose</div>
+                <div class="flex flex-wrap gap-1">
+                    {% for ref in volume_refs %}
+                    <span class="border px-2 py-1 text-[9px] font-bold uppercase {% if ref in volumes|map(attribute='name')|list %}bg-black text-white{% else %}border-dashed text-gray-400{% endif %}">
+                        ${{ ref }}
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if volumes %}
+            <div class="border-t-2 border-dashed border-black pt-3">
+                <div class="text-[10px] font-bold uppercase text-gray-500 mb-2">Existing Volumes</div>
+                {% for vol in volumes %}
+                <div class="flex items-center justify-between border border-black p-2 text-[10px] mb-1">
+                    <span class="font-bold uppercase min-w-[5rem]">{{ vol.name }}</span>
+                    <span class="text-gray-500 font-mono truncate mx-2 flex-1 text-[9px]">{{ vol.path }}</span>
+                    <button type="button" class="insert-vol-btn font-bold uppercase text-[10px] bg-black text-white px-2 py-1 hover:bg-white hover:text-black border-2 border-black transition-colors flex-shrink-0" data-name="{{ vol.name }}">
+                        Insert ${{ vol.name }}
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="flex gap-3 sm:gap-4">
+        <button type="submit" class="flex-1 bg-black text-white font-bold p-3 sm:p-4 border-4 border-black hover:bg-white hover:text-black transition-colors uppercase tracking-widest text-sm sm:text-lg">
             Deploy {{ meta.name }} &rarr;
         </button>
     </div>
@@ -37,50 +140,237 @@
 
 <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
 <script>
-const original = document.getElementById('compose-textarea').value;
-let editor = null;
+(function() {
+    var original = document.getElementById('compose-textarea').value;
+    var editor = null;
+    var activeFile = 'docker-compose.yaml';
+    var fileContents = {};
+    var models = {};
+    {% for file in app_files %}
+    fileContents['{{ file.name }}'] = document.getElementById('file-{{ file.name|replace('.', '_') }}') ? document.getElementById('file-{{ file.name|replace('.', '_') }}').value : '';
+    {% endfor %}
+    fileContents['docker-compose.yaml'] = original;
 
-require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
-require(['vs/editor/editor.main'], function () {
-    monaco.editor.defineTheme('nasypeasy', {
-        base: 'vs',
-        inherit: true,
-        rules: [
-            { token: 'key', foreground: '000000', fontStyle: 'bold' },
-            { token: 'string', foreground: '333333' },
-            { token: 'number', foreground: '000000' },
-            { token: 'comment', foreground: '888888', fontStyle: 'italic' },
-        ],
-        colors: {
-            'editor.background': '#ffffff',
-            'editor.foreground': '#000000',
-            'editor.lineHighlightBackground': '#f5f5f5',
-            'editorCursor.foreground': '#000000',
-            'editorLineNumber.foreground': '#cccccc',
-            'editor.selectionBackground': '#d0d0d0',
+    var volumeMap = {{ volume_map_json|default('{}')|safe }};
+    var showResolved = false;
+    var resolveToggle = document.getElementById('resolve-toggle');
+    var filenameDisplay = document.getElementById('active-filename');
+
+    function updateResolved() {
+        if (!models['docker-compose.yaml'] || !models['_resolved']) return;
+        var raw = fileContents['docker-compose.yaml'];
+        var resolved = raw.replace(/\$([A-Z_][A-Z0-9_]*)/g, function(m, name) {
+            return volumeMap[name] !== undefined ? volumeMap[name] : m;
+        });
+        models['_resolved'].setValue(resolved);
+    }
+
+    function switchFile(filename) {
+        activeFile = filename;
+        if (filenameDisplay) filenameDisplay.textContent = filename;
+        if (editor) {
+            var m = showResolved && filename === 'docker-compose.yaml' ? models['_resolved'] : models[filename];
+            if (m) editor.setModel(m);
+        }
+        [].forEach.call(document.querySelectorAll('.file-tree-item'), function(el) {
+            el.classList.toggle('active', el.dataset.file === filename);
+        });
+    }
+
+    require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+    require(['vs/editor/editor.main'], function () {
+        monaco.editor.defineTheme('nasypeasy', {
+            base: 'vs',
+            inherit: true,
+            rules: [
+                { token: 'key', foreground: '000000', fontStyle: 'bold' },
+                { token: 'string', foreground: '333333' },
+                { token: 'number', foreground: '000000' },
+                { token: 'comment', foreground: '888888', fontStyle: 'italic' },
+            ],
+            colors: {
+                'editor.background': '#ffffff',
+                'editor.foreground': '#000000',
+                'editor.lineHighlightBackground': '#f5f5f5',
+                'editorCursor.foreground': '#000000',
+                'editorLineNumber.foreground': '#cccccc',
+                'editor.selectionBackground': '#d0d0d0',
+            }
+        });
+
+        Object.keys(fileContents).forEach(function(name) {
+            var lang = name.endsWith('.yaml') || name.endsWith('.yml') ? 'yaml'
+                     : name.endsWith('.json') ? 'json' : 'plaintext';
+            models[name] = monaco.editor.createModel(fileContents[name] || '', lang);
+            models[name].onDidChangeContent(function() {
+                fileContents[name] = models[name].getValue();
+                if (name === 'docker-compose.yaml') updateResolved();
+            });
+        });
+
+        models['_resolved'] = monaco.editor.createModel('', 'yaml');
+        models['_resolved'].updateOptions({ readOnly: true });
+        updateResolved();
+
+        editor = monaco.editor.create(document.getElementById('editor-container'), {
+            model: models['docker-compose.yaml'],
+            theme: 'nasypeasy',
+            automaticLayout: true,
+            minimap: { enabled: false },
+            fontSize: 13,
+            fontFamily: '"Courier New", Courier, monospace',
+            scrollBeyondLastLine: false,
+            renderLineHighlight: 'line',
+            padding: { top: 12 },
+            wordWrap: 'on',
+        });
+
+        switchFile('docker-compose.yaml');
+    });
+
+    // Resolved toggle
+    if (resolveToggle) {
+        resolveToggle.addEventListener('click', function() {
+            showResolved = !showResolved;
+            resolveToggle.textContent = showResolved ? 'Edit' : 'Resolved';
+            if (editor) {
+                var target = showResolved && activeFile === 'docker-compose.yaml'
+                    ? models['_resolved'] : models[activeFile];
+                if (target) editor.setModel(target);
+            }
+        });
+    }
+
+    // File tree click handlers
+    [].forEach.call(document.querySelectorAll('.file-tree-item'), function(el) {
+        el.addEventListener('click', function() {
+            var filename = this.dataset.file;
+            if (filename === activeFile) return;
+            switchFile(filename);
+        });
+    });
+
+    // Mobile file toggle
+    var fileToggle = document.getElementById('file-toggle');
+    var fileTreeMobile = document.getElementById('file-tree-mobile');
+    if (fileToggle && fileTreeMobile) {
+        fileToggle.addEventListener('click', function() {
+            fileTreeMobile.classList.toggle('hidden');
+        });
+    }
+
+    // Reset button
+    document.getElementById('reset-btn').addEventListener('click', function() {
+        if (editor) {
+            fileContents['docker-compose.yaml'] = original;
+            models['docker-compose.yaml'].setValue(original);
+            switchFile('docker-compose.yaml');
         }
     });
-    editor = monaco.editor.create(document.getElementById('editor-container'), {
-        value: original,
-        language: 'yaml',
-        theme: 'nasypeasy',
-        automaticLayout: true,
-        minimap: { enabled: false },
-        fontSize: 14,
-        fontFamily: '"Courier New", Courier, monospace',
-        scrollBeyondLastLine: false,
-        renderLineHighlight: 'line',
-        padding: { top: 16 },
-    });
-    editor.getModel().onDidChangeContent(() => {
-        document.getElementById('compose-textarea').value = editor.getValue();
-    });
-});
 
-document.getElementById('reset-btn').addEventListener('click', function () {
-    if (editor) {
-        editor.setValue(original);
+    // Deploy form submit: write compose content to hidden textarea
+    document.getElementById('deploy-form').addEventListener('submit', function() {
+        document.getElementById('compose-textarea').value = fileContents['docker-compose.yaml'] || original;
+    });
+
+    // ── Quick Volumes ──────────────────────────────────────
+
+    function insertVolumeMount(name) {
+        if (!editor) return;
+        if (activeFile !== 'docker-compose.yaml' || showResolved) {
+            if (showResolved) showResolved = false;
+            resolveToggle.textContent = 'Resolved';
+            switchFile('docker-compose.yaml');
+        }
+
+        var content = editor.getValue();
+        var ref = '$' + name;
+        var lines = content.split('\n');
+        var insertLine = -1;
+        var insertText = '';
+
+        // Look for an existing volumes: section under a service
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].replace(/\s+$/, '');
+            if (/^\s{4}volumes:\s*$/.test(line)) {
+                insertLine = i + 2;
+                insertText = '      - ' + ref + ':/data\n';
+                // Walk subsequent lines to find the last volume entry
+                for (var j = i + 1; j < lines.length; j++) {
+                    var next = lines[j].replace(/\s+$/, '');
+                    if (/^\s{6}[-\s]/.test(next)) {
+                        insertLine = j + 2;
+                    } else if (next !== '' && !/^\s{6}/.test(next)) {
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+
+        // No volumes: found — locate first service and create one
+        if (insertLine === -1) {
+            for (var i = 0; i < lines.length; i++) {
+                var m = lines[i].match(/^(\s{2})([\w][\w-]*):\s*$/);
+                if (m) {
+                    var si = m[1].length;
+                    var end = i + 1;
+                    for (var j = i + 1; j < lines.length; j++) {
+                        var ind = lines[j].search(/\S/);
+                        if (ind <= si && lines[j].trim() !== '') break;
+                        if (ind > si) end = j + 1;
+                    }
+                    insertLine = end + 1;
+                    insertText = '    volumes:\n      - ' + ref + ':/data\n';
+                    break;
+                }
+            }
+        }
+
+        if (insertLine !== -1) {
+            editor.executeEdits('quick-vol', [{
+                range: new monaco.Range(insertLine, 1, insertLine, 1),
+                text: insertText,
+                forceMoveMarkers: true
+            }]);
+            editor.focus();
+        }
     }
-});
+
+    // "Add & Attach" button
+    var quickAddBtn = document.getElementById('quick-vol-add');
+    var quickSd = document.getElementById('quick-shared-dir');
+    var quickName = document.getElementById('quick-vol-name');
+    if (quickAddBtn && quickSd && quickName) {
+        quickAddBtn.addEventListener('click', function() {
+            var sd = quickSd.value;
+            var name = quickName.value.trim().toUpperCase();
+            if (!sd || !name) return;
+            if (!/^[A-Z_][A-Z0-9_]*$/.test(name)) return;
+            var csrf = document.querySelector('#deploy-form input[name="csrf_token"]');
+            var token = csrf ? csrf.value : '';
+            var formData = new FormData();
+            formData.append('csrf_token', token);
+            formData.append('shared_dir_id', sd);
+            formData.append('name', name);
+            fetch('/volumes/add', { method: 'POST', body: formData })
+                .then(function() {
+                    insertVolumeMount(name);
+                    quickName.value = '';
+                })
+                .catch(function() {
+                    insertVolumeMount(name);
+                    quickName.value = '';
+                });
+        });
+    }
+
+    // "Insert $" buttons on existing volumes — also yaml-aware now
+    [].forEach.call(document.querySelectorAll('.insert-vol-btn'), function(btn) {
+        btn.addEventListener('click', function() {
+            insertVolumeMount(this.dataset.name);
+        });
+    });
+})();
 </script>
 {% endblock %}

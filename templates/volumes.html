@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Volumes - NASYPEASY{% endblock %}
+{% block body %}
+<div class="mb-6 sm:mb-8 border-b-4 border-black pb-3 sm:pb-4">
+    <h2 class="text-2xl sm:text-3xl md:text-4xl font-bold uppercase tracking-tighter">Volumes</h2>
+</div>
+
+{% if disk_total %}
+<div class="border-4 border-black p-4 sm:p-6 mb-6 sm:mb-8">
+    <h3 class="text-sm sm:text-lg font-bold uppercase mb-3 border-b-2 border-dashed border-black pb-2">System Storage</h3>
+    <div class="text-[10px] sm:text-xs font-bold uppercase text-gray-500 mb-1">Used &mdash; {{ disk_percent }}%</div>
+    <div class="w-full h-4 sm:h-5 border-2 border-black bg-white">
+        <div class="h-full bg-black transition-all" style="width: {{ disk_percent }}%"></div>
+    </div>
+    <div class="flex justify-between text-[10px] sm:text-xs font-bold mt-1">
+        <span class="text-gray-700">{{ fmt_bytes(disk_used) }} used</span>
+        <span class="text-gray-400">{{ fmt_bytes(disk_free) }} free</span>
+        <span class="text-gray-700">{{ fmt_bytes(disk_total) }} total</span>
+    </div>
+</div>
+{% endif %}
+
+<!-- Shared Directories -->
+<div class="border-4 border-black p-4 sm:p-6 mb-6 sm:mb-8">
+    <h3 class="text-sm sm:text-lg font-bold uppercase mb-3 sm:mb-4 border-b-2 border-dashed border-black pb-2">Shared Directories</h3>
+
+    <form method="POST" action="{{ url_for('apps.shared_dir_add') }}" class="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4 sm:mb-6">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="text" name="path" placeholder="/app/your-data-folder" required
+               class="flex-grow border-2 border-black p-3 focus:outline-none focus:ring-4 focus:ring-black/20 font-mono text-xs sm:text-sm">
+        <button type="submit" class="bg-black text-white font-bold px-6 sm:px-8 py-3 hover:bg-white hover:text-black border-4 border-black transition-colors uppercase tracking-wider text-xs sm:text-sm whitespace-nowrap">
+            Add
+        </button>
+    </form>
+
+    {% if shared_dirs %}
+    <div class="overflow-x-auto border-2 border-black">
+        <table class="w-full text-left">
+            <thead>
+                <tr class="bg-black text-white uppercase text-[10px] sm:text-xs font-bold">
+                    <th class="p-2 sm:p-3 border-r border-gray-600">Path</th>
+                    <th class="p-2 sm:p-3 border-r border-gray-600 hidden sm:table-cell">Size</th>
+                    <th class="p-2 sm:p-3 border-r border-gray-600 hidden sm:table-cell">Created</th>
+                    <th class="p-2 sm:p-3 w-20 sm:w-24">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sd in shared_dirs %}
+                <tr class="border-t border-black hover:bg-gray-50 transition-colors text-[10px] sm:text-sm">
+                    <td class="p-2 sm:p-3 border-r border-black font-mono break-all">{{ sd.path }}</td>
+                    <td class="p-2 sm:p-3 border-r border-black text-gray-600 hidden sm:table-cell">{{ sd.size }}</td>
+                    <td class="p-2 sm:p-3 border-r border-black text-gray-500 hidden sm:table-cell">{{ sd.created_at }}</td>
+                    <td class="p-2 sm:p-3">
+                        <form method="POST" action="{{ url_for('apps.shared_dir_delete', id=sd.id) }}" onsubmit="return confirm('Remove {{ sd.path }}?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="bg-red-700 text-white font-bold px-2 py-1 sm:px-3 sm:py-1.5 border-2 border-black hover:bg-red-800 transition-colors uppercase text-[10px]">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="border-2 border-dashed border-black p-6 sm:p-8 text-center">
+        <p class="text-xs sm:text-sm text-gray-400 font-bold uppercase">No shared directories configured.</p>
+        <p class="text-[10px] sm:text-xs text-gray-400 mt-2">Add one above (e.g. <code class="font-mono bg-gray-100 px-1">/app/your-data-folder</code>), then create volumes under it.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Virtual Volumes -->
+<div class="border-4 border-black p-4 sm:p-6 mb-6 sm:mb-8">
+    <h3 class="text-sm sm:text-lg font-bold uppercase mb-3 sm:mb-4 border-b-2 border-dashed border-black pb-2">Virtual Volumes</h3>
+
+    {% if shared_dirs %}
+    <form method="POST" action="{{ url_for('apps.volume_add') }}" class="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4 sm:mb-6">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <select name="shared_dir_id" required
+                class="flex-1 border-2 border-black p-3 focus:outline-none focus:ring-4 focus:ring-black/20 font-bold text-xs sm:text-sm uppercase bg-white">
+            <option value="" disabled selected>SELECT SHARED DIR</option>
+            {% for sd in shared_dirs %}
+            <option value="{{ sd.id }}">{{ sd.path }}</option>
+            {% endfor %}
+        </select>
+        <input type="text" name="name" placeholder="Volume name (e.g. DATA)" required
+               class="flex-1 border-2 border-black p-3 focus:outline-none focus:ring-4 focus:ring-black/20 font-bold text-xs sm:text-sm uppercase placeholder:uppercase placeholder:text-gray-400">
+        <button type="submit" class="bg-black text-white font-bold px-6 sm:px-8 py-3 hover:bg-white hover:text-black border-4 border-black transition-colors uppercase tracking-wider text-xs sm:text-sm whitespace-nowrap">
+            Create
+        </button>
+    </form>
+    {% else %}
+    <div class="border-2 border-dashed border-black p-4 sm:p-6 text-center mb-4 sm:mb-6">
+        <p class="text-xs sm:text-sm text-gray-400 font-bold uppercase">Add a shared directory first.</p>
+    </div>
+    {% endif %}
+
+    <div class="overflow-x-auto border-2 border-black">
+        <table class="w-full text-left">
+            <thead>
+                <tr class="bg-black text-white uppercase text-[10px] sm:text-xs font-bold">
+                    <th class="p-2 sm:p-3 border-r border-gray-600">Name</th>
+                    <th class="p-2 sm:p-3 border-r border-gray-600">Path</th>
+                    <th class="p-2 sm:p-3 border-r border-gray-600 hidden sm:table-cell">Size</th>
+                    <th class="p-2 sm:p-3 border-r border-gray-600 hidden sm:table-cell">Created</th>
+                    <th class="p-2 sm:p-3">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vol in volumes %}
+                <tr class="border-t border-black hover:bg-gray-50 transition-colors text-[10px] sm:text-sm">
+                    <td class="p-2 sm:p-3 border-r border-black font-bold uppercase flex items-center gap-2">
+                        {% if not vol.valid %}
+                        <span title="Directory does not exist on disk" class="inline-block w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></span>
+                        {% else %}
+                        <span class="inline-block w-2 h-2 rounded-full bg-black flex-shrink-0"></span>
+                        {% endif %}
+                        {{ vol.name }}
+                    </td>
+                    <td class="p-2 sm:p-3 border-r border-black font-mono break-all max-w-[200px] sm:max-w-none">
+                        {{ vol.path }}
+                        {% if not vol.valid %}
+                        <span class="text-red-600 font-bold ml-1">(missing)</span>
+                        {% endif %}
+                    </td>
+                    <td class="p-2 sm:p-3 border-r border-black text-gray-600 hidden sm:table-cell">{{ vol.size }}</td>
+                    <td class="p-2 sm:p-3 border-r border-black text-gray-500 hidden sm:table-cell">{{ vol.created_at }}</td>
+                    <td class="p-2 sm:p-3">
+                        <form method="POST" action="{{ url_for('apps.volume_delete', id=vol.id) }}" onsubmit="return confirm('Delete volume {{ vol.name }}?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="bg-red-700 text-white font-bold px-2 py-1 sm:px-3 sm:py-1.5 border-2 border-black hover:bg-red-800 transition-colors uppercase text-[10px]">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr class="border-t border-black">
+                    <td colspan="5" class="p-6 sm:p-8 text-center text-gray-400 font-bold uppercase text-xs sm:text-sm">
+                        No virtual volumes defined yet.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="border-2 border-dashed border-black p-4 sm:p-6">
+    <h4 class="text-xs sm:text-sm font-bold uppercase mb-2">How It Works</h4>
+    <p class="text-[10px] sm:text-xs text-gray-600 leading-relaxed">
+        <strong>1.</strong> Add a <em>Shared Directory</em> (a folder accessible on your host, e.g. <code class="bg-gray-100 px-1 font-mono">/app/your-data-folder</code>).<br>
+        <strong>2.</strong> Create a <em>Virtual Volume</em> under it — this creates a subdirectory (e.g. <code class="bg-gray-100 px-1 font-mono">/app/your-data-folder/DATA</code>).<br>
+        <strong>3.</strong> In your app's <code class="bg-gray-100 px-1 font-mono">docker-compose.yaml</code>, reference it as <code class="bg-gray-100 px-1 font-mono">$DATA</code> — the path is substituted automatically at deploy time.<br>
+        <strong>4.</strong> A <span class="inline-block w-2 h-2 rounded-full bg-red-500 align-middle"></span> red dot means the directory no longer exists on disk (non-blocking warning).
+    </p>
+</div>
+{% endblock %}
