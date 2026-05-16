@@ -4,6 +4,10 @@ import time
 import socket
 import os
 import sys
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import shutil
+import tempfile
 
 try:
     import requests
@@ -19,6 +23,12 @@ _ts_available = False
 _ts_api_mode = None
 _ts_api_key = None
 _ts_tailnet = None
+
+LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'host_agent.log')
+
+
+def log(msg):
+    print(msg, file=sys.stderr)
 
 
 def load_env():
@@ -51,27 +61,27 @@ def probe_tailscale():
                 _ts_api_key = key
                 _ts_tailnet = tailnet
                 _ts_available = True
-                print('tailscale: using API v2', file=sys.stderr)
+                log('tailscale: using API v2')
                 return
             else:
-                print(f'tailscale: API returned {r.status_code}', file=sys.stderr)
+                log(f'tailscale: API returned {r.status_code}')
         except Exception as e:
-            print(f'tailscale: API error - {e}', file=sys.stderr)
+            log(f'tailscale: API error - {e}')
 
     try:
         r = subprocess.run(['tailscale', 'status', '--json'], capture_output=True, text=True, timeout=5)
         if r.returncode == 0 and r.stdout.strip():
             _ts_api_mode = 'cli'
             _ts_available = True
-            print('tailscale: using local CLI', file=sys.stderr)
+            log('tailscale: using local CLI')
             return
     except FileNotFoundError:
         pass
     except Exception as e:
-        print(f'tailscale: CLI probe error - {e}', file=sys.stderr)
+        log(f'tailscale: CLI probe error - {e}')
 
     _ts_available = False
-    print('tailscale: not available (set TAILSCALE_API_KEY+TAILSCALE_TAILNET in .env or start tailscaled)', file=sys.stderr)
+    log('tailscale: not available (set TAILSCALE_API_KEY+TAILSCALE_TAILNET in .env or start tailscaled)')
 
 
 def get_podman_containers():
@@ -81,7 +91,7 @@ def get_podman_containers():
             return json.loads(result.stdout)
         return []
     except Exception as e:
-        print(f"podman error: {e}", file=sys.stderr)
+        log(f"podman error: {e}")
         return []
 
 
@@ -114,7 +124,7 @@ def get_tailscale_status():
                 'devices': devices,
             }
         except Exception as e:
-            print(f'tailscale API error: {e}', file=sys.stderr)
+            log(f'tailscale API error: {e}')
             return None
 
     if _ts_api_mode == 'cli':
@@ -123,7 +133,7 @@ def get_tailscale_status():
             if r.returncode == 0 and r.stdout.strip():
                 return json.loads(r.stdout)
         except Exception as e:
-            print(f'tailscale CLI error: {e}', file=sys.stderr)
+            log(f'tailscale CLI error: {e}')
         return None
 
 
@@ -150,7 +160,154 @@ def collect():
         json.dump(data, f)
 
 
-LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'host_agent.log')
+def collector_loop():
+    while True:
+        collect()
+        time.sleep(POLL_INTERVAL)
+
+
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+SYSTEM_PODMAN = '/usr/bin/podman'
+SYSTEM_PODMAN_COMPOSE = '/usr/bin/podman-compose'
+
+
+class DeployHandler(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        log(f"[api] {format % args}")
+
+    def _send_json(self, data, status=200):
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(data).encode())
+
+    def _send_text(self, text, status=200):
+        self.send_response(status)
+        self.send_header('Content-Type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(text.encode())
+
+    def do_POST(self):
+        content_len = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(content_len).decode()
+        try:
+            payload = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            self._send_json({'error': 'invalid json'}, 400)
+            return
+
+        if self.path == '/api/deploy':
+            folder = payload.get('folder', '')
+            if not folder:
+                self._send_json({'error': 'folder required'}, 400)
+                return
+            app_dir = os.path.join(PROJECT_DIR, 'templates', 'apps', folder)
+            compose_file = os.path.join(app_dir, 'docker-compose.yaml')
+            if not os.path.isfile(compose_file):
+                self._send_json({'error': f'docker-compose.yaml not found in {folder}'}, 400)
+                return
+            try:
+                result = subprocess.run(
+                    [SYSTEM_PODMAN_COMPOSE, '-f', compose_file, 'up', '-d'],
+                    capture_output=True, text=True, timeout=60
+                )
+                if result.returncode != 0:
+                    self._send_json({'error': result.stderr or result.stdout}, 500)
+                    return
+                self._send_json({'ok': True, 'output': result.stdout})
+            except Exception as e:
+                self._send_json({'error': str(e)}, 500)
+            return
+
+        if self.path.startswith('/api/deployed/') and self.path.endswith('/down'):
+            name = self.path.split('/')[3]
+            app_dir = os.path.join(PROJECT_DIR, 'templates', 'apps', name)
+            compose_file = os.path.join(app_dir, 'docker-compose.yaml')
+            if not os.path.isfile(compose_file):
+                self._send_json({'error': 'compose file not found'}, 400)
+                return
+            try:
+                result = subprocess.run(
+                    [SYSTEM_PODMAN_COMPOSE, '-f', compose_file, 'down'],
+                    capture_output=True, text=True, timeout=60
+                )
+                if result.returncode != 0:
+                    self._send_json({'error': result.stderr or result.stdout}, 500)
+                    return
+                self._send_json({'ok': True, 'output': result.stdout})
+            except Exception as e:
+                self._send_json({'error': str(e)}, 500)
+            return
+
+        self._send_json({'error': 'not found'}, 404)
+
+    def do_GET(self):
+        if self.path.startswith('/api/deployed/') and self.path.endswith('/status'):
+            name = self.path.split('/')[3]
+            app_dir = os.path.join(PROJECT_DIR, 'templates', 'apps', name)
+            compose_file = os.path.join(app_dir, 'docker-compose.yaml')
+            try:
+                result = subprocess.run(
+                    [SYSTEM_PODMAN_COMPOSE, '-f', compose_file, 'ps', '--format', 'json'],
+                    capture_output=True, text=True, timeout=10
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    self._send_json(json.loads(result.stdout))
+                else:
+                    self._send_json({'status': 'stopped'})
+            except Exception as e:
+                self._send_json({'error': str(e)}, 500)
+            return
+
+        if self.path.startswith('/api/deployed/') and self.path.endswith('/logs'):
+            name = self.path.split('/')[3]
+            app_dir = os.path.join(PROJECT_DIR, 'templates', 'apps', name)
+            compose_file = os.path.join(app_dir, 'docker-compose.yaml')
+            try:
+                project_name = f'nasypeasy-{name}'
+                ps_result = subprocess.run(
+                    [SYSTEM_PODMAN_COMPOSE, '-f', compose_file, '-p', project_name, 'ps', '--format', 'json'],
+                    capture_output=True, text=True, timeout=10
+                )
+                container_ids = []
+                if ps_result.returncode == 0 and ps_result.stdout.strip():
+                    services = json.loads(ps_result.stdout)
+                    if isinstance(services, list):
+                        for s in services:
+                            if s.get('ID'):
+                                container_ids.append(s['ID'])
+                    elif isinstance(services, dict):
+                        for k, v in services.items():
+                            if isinstance(v, dict) and v.get('ID'):
+                                container_ids.append(v['ID'])
+                if not container_ids:
+                    self._send_text('No running containers for this app.\n')
+                    return
+                log_lines = []
+                for cid in container_ids:
+                    try:
+                        r = subprocess.run(
+                            [SYSTEM_PODMAN, 'logs', '--tail', '100', cid],
+                            capture_output=True, text=True, timeout=5
+                        )
+                        if r.stdout:
+                            log_lines.append(f"=== {cid[:12]} ===\n{r.stdout}")
+                        if r.stderr:
+                            log_lines.append(f"=== {cid[:12]} (stderr) ===\n{r.stderr}")
+                    except Exception:
+                        pass
+                self._send_text('\n'.join(log_lines) if log_lines else 'No logs available.\n')
+            except Exception as e:
+                self._send_text(f'Error: {e}\n', 500)
+            return
+
+        self._send_json({'error': 'not found'}, 404)
+
+
+def api_server():
+    server = HTTPServer(('127.0.0.1', 5001), DeployHandler)
+    log(f"[api] HTTP server on http://127.0.0.1:5001")
+    server.serve_forever()
 
 
 def daemonize():
@@ -174,13 +331,13 @@ def main():
     if '--daemon' in sys.argv:
         daemonize()
     load_env()
-    print(f"Host agent starting (poll interval: {POLL_INTERVAL}s)", file=sys.stderr)
-    print(f"Data file: {DATA_FILE}", file=sys.stderr)
-    print(f"Log file: {LOG_FILE}", file=sys.stderr)
+    log(f"Host agent starting (poll interval: {POLL_INTERVAL}s)")
+    log(f"Data file: {DATA_FILE}")
+    log(f"Log file: {LOG_FILE}")
     probe_tailscale()
-    while True:
-        collect()
-        time.sleep(POLL_INTERVAL)
+    t = threading.Thread(target=api_server, daemon=True)
+    t.start()
+    collector_loop()
 
 
 if __name__ == '__main__':

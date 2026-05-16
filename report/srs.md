@@ -9,7 +9,7 @@ Nasypeasy is a Flask-based web application providing:
 - Secure user authentication using DuckDB.
 - Container management backed by Podman.
 - Network visibility via Tailscale integration.
-- Dynamic app deployment via a repository-backed system (local and remote YAML specs).
+- Dynamic app deployment via a repository-backed system (local app folders with compose specs, remote JSON manifests).
 - Conditional dashboard integration for Cockpit (port 9090).
 
 ## 2. Overall Description
@@ -34,7 +34,7 @@ Displays server status, Tailscale IP/status, and a link to Cockpit if available 
 List, start, and stop Podman containers.
 
 ### 3.4 App Repository System
-Discover and deploy apps from a local directory (`./templates/apps`) or an external repository URL containing app specification YAMLs.
+Discover and deploy apps from a local directory (`./templates/apps`) or an external repository URL. App definitions use a folder structure with metadata and compose files. A Monaco-based editor allows inspecting and modifying the compose definition before deployment.
 
 ## 4. State Diagrams
 
@@ -56,14 +56,20 @@ stateDiagram-v2
     [*] --> Dashboard
     Dashboard --> AppRepository: Navigate to Apps
     AppRepository --> FetchingSources: Request App List
-    FetchingSources --> ParsingLocal: Read ./templates/apps
+    FetchingSources --> ParsingLocal: Read ./templates/apps/*/app.json
     FetchingSources --> FetchingRemote: Fetch from external repo
     ParsingLocal --> AggregatingApps
     FetchingRemote --> AggregatingApps
     AggregatingApps --> DisplayingApps: Show List
-    DisplayingApps --> DeployingApp: User selects app to install
-    DeployingApp --> PodmanExecution: Execute podman run/compose
-    PodmanExecution --> DisplayingApps: Success/Failure
+    DisplayingApps --> ReviewingCompose: User selects app
+    ReviewingCompose --> EditingCompose: Modify compose definition
+    EditingCompose --> DeployingApp: Confirm deploy
+    DeployingApp --> ComposeExecution: podman-compose up -d
+    ComposeExecution --> ManagingDeployed: Dashboard shows running app
+    ManagingDeployed --> ViewingLogs: Poll podman logs
+    ManagingDeployed --> StoppingApp: podman-compose down
+    StoppingApp --> AppRepository
+    ViewingLogs --> ManagingDeployed
 ```
 
 ### 4.3 External Services Integration (Tailscale & Cockpit)

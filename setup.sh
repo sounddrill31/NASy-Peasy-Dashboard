@@ -3,12 +3,19 @@ set -euo pipefail
 
 echo "=== NASy-Peasy Setup ==="
 
-# 1. Install pixi dependencies
-echo "[1/3] Installing dependencies..."
+# 1. Generate random secret key
+SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+cat > .env <<EOF
+FLASK_SECRET_KEY=$SECRET_KEY
+EOF
+echo "[1/4] Secret key generated"
+
+# 2. Install pixi dependencies
+echo "[2/4] Installing dependencies..."
 pixi install
 
-# 2. Create a user
-echo "[2/3] Creating admin user..."
+# 3. Create a user
+echo "[3/4] Creating admin user..."
 echo ""
 read -r -p "Enter username [admin]: " USERNAME
 USERNAME="${USERNAME:-admin}"
@@ -22,17 +29,17 @@ if [ "$PASSWORD" != "$PASSWORD2" ]; then
 fi
 pixi run create-user "$USERNAME" "$PASSWORD"
 
-# 3. Tailscale API key (optional)
+# 4. Tailscale API key (optional)
 echo ""
-echo "[3/3] Optional: Tailscale API key for remote access"
+echo "[4/4] Optional: Tailscale API key for remote access"
 read -r -p "Tailscale API key (press enter to skip): " TS_KEY
 if [ -n "$TS_KEY" ]; then
     read -r -p "Tailscale tailnet name: " TS_TAILNET
-    cat > .env <<EOF
+    cat >> .env <<EOF
 TAILSCALE_API_KEY=$TS_KEY
 TAILSCALE_TAILNET=$TS_TAILNET
 EOF
-    echo "  .env created"
+    echo "  Tailscale vars appended to .env"
 fi
 
 echo ""

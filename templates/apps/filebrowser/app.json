@@ -1,0 +1,6 @@
+{
+  "name": "FileBrowser",
+  "description": "A web-based file manager for your server",
+  "icon": "fas fa-folder-open",
+  "port": 8080
+}

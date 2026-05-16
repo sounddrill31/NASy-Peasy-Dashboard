@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Deploy {{ meta.name }} - Nasypeasy{% endblock %}
+{% block content %}
+<div class="mb-4 flex justify-between items-end border-b-4 border-black pb-4">
+    <h2 class="text-3xl font-bold uppercase">Deploy: {{ meta.name }}</h2>
+    <a href="{{ url_for('apps.list_apps') }}" class="text-sm font-bold hover:underline decoration-2">&lt;- BACK TO APPS</a>
+</div>
+<p class="mb-6 text-sm text-gray-600">{{ meta.description }}</p>
+
+<form id="deploy-form" method="POST" action="{{ url_for('apps.deploy_app', name=name) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="border-4 border-black mb-4">
+        <div class="bg-black text-white px-4 py-2 font-bold uppercase text-sm flex justify-between items-center">
+            <span>docker-compose.yaml</span>
+            <div class="flex gap-2">
+                <button type="button" id="reset-btn" class="text-xs bg-white text-black px-2 py-1 hover:bg-gray-200 transition-colors">Reset</button>
+            </div>
+        </div>
+        <div id="editor-container" style="height:60vh;"></div>
+        <textarea name="compose" id="compose-textarea" class="hidden">{{ compose }}</textarea>
+    </div>
+
+    {% if dockerfile %}
+    <div class="border-4 border-black mb-4">
+        <div class="bg-black text-white px-4 py-2 font-bold uppercase text-sm">Dockerfile</div>
+        <pre class="p-4 text-sm font-mono overflow-x-auto bg-gray-50">{{ dockerfile }}</pre>
+        <textarea name="dockerfile" class="hidden">{{ dockerfile }}</textarea>
+    </div>
+    {% endif %}
+
+    <div class="flex gap-4">
+        <button type="submit" class="flex-1 bg-black text-white font-bold p-4 border-4 border-black hover:bg-white hover:text-black transition-colors uppercase tracking-widest text-lg">
+            Deploy {{ meta.name }} &rarr;
+        </button>
+    </div>
+</form>
+
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+<script>
+const original = document.getElementById('compose-textarea').value;
+let editor = null;
+
+require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+require(['vs/editor/editor.main'], function () {
+    monaco.editor.defineTheme('nasypeasy', {
+        base: 'vs',
+        inherit: true,
+        rules: [
+            { token: 'key', foreground: '000000', fontStyle: 'bold' },
+            { token: 'string', foreground: '333333' },
+            { token: 'number', foreground: '000000' },
+            { token: 'comment', foreground: '888888', fontStyle: 'italic' },
+        ],
+        colors: {
+            'editor.background': '#ffffff',
+            'editor.foreground': '#000000',
+            'editor.lineHighlightBackground': '#f5f5f5',
+            'editorCursor.foreground': '#000000',
+            'editorLineNumber.foreground': '#cccccc',
+            'editor.selectionBackground': '#d0d0d0',
+        }
+    });
+    editor = monaco.editor.create(document.getElementById('editor-container'), {
+        value: original,
+        language: 'yaml',
+        theme: 'nasypeasy',
+        automaticLayout: true,
+        minimap: { enabled: false },
+        fontSize: 14,
+        fontFamily: '"Courier New", Courier, monospace',
+        scrollBeyondLastLine: false,
+        renderLineHighlight: 'line',
+        padding: { top: 16 },
+    });
+    editor.getModel().onDidChangeContent(() => {
+        document.getElementById('compose-textarea').value = editor.getValue();
+    });
+});
+
+document.getElementById('reset-btn').addEventListener('click', function () {
+    if (editor) {
+        editor.setValue(original);
+    }
+});
+</script>
+{% endblock %}

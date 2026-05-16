@@ -5,6 +5,4 @@ services:
     network_mode: host
     volumes:
       - .:/app:Z
-    environment:
-      - FLASK_SECRET_KEY=nasypeasy-prod-secret-change-me
-    restart: unless-stopped
+    env_file: .env
