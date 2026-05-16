@@ -1,0 +1,26 @@
+[workspace]
+authors = ["google-labs-jules[bot] <161369871+google-labs-jules[bot]@users.noreply.github.com>"]
+channels = ["conda-forge"]
+name = "nasypeasy"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[dependencies]
+python = ">=3.11,<3.13"
+flask = ">=3.1.3,<4"
+flask-login = ">=0.6.3,<0.7"
+duckdb = ">=1.5.2,<2"
+werkzeug = ">=3.1.8,<4"
+pyyaml = ">=6.0.3,<7"
+requests = ">=2.34.1,<3"
+flask-wtf = ">=1.3.0,<2"
+podman = ">=5.8.2,<6"
+podman-compose = ">=1.5.0,<2"
+
+
+[tasks]
+server = {cmd="podman-compose -f docker-compose.yml up -d", depends-on="host-agent" }
+server-clean = {cmd="podman-compose -f docker-compose.yml up -d --build", depends-on="host-agent" }
+start = "python app.py"
+create-user = "python create_user.py"
+host-agent = "python host_agent.py --daemon"

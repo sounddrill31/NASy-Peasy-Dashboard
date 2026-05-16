@@ -1,0 +1,10 @@
+services:
+  dashboard:
+    build: .
+    container_name: nasypeasy-dashboard
+    network_mode: host
+    volumes:
+      - .:/app:Z
+    environment:
+      - FLASK_SECRET_KEY=nasypeasy-prod-secret-change-me
+    restart: unless-stopped

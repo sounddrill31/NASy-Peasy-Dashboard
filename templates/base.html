@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Nasypeasy{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              mono: ["Space Mono", "monospace"],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap");
+      * {
+        font-family: "Space Mono", monospace;
+      }
+    </style>
+</head>
+<body class="bg-white text-black min-h-screen p-8">
+    <header class="mb-12 border-b-2 border-black pb-4 flex justify-between items-end">
+        <h1 class="text-4xl font-bold uppercase tracking-tighter">
+            <a href="{{ url_for('index') }}" class="hover:underline decoration-4 underline-offset-4">Nasypeasy</a>
+        </h1>
+        <nav class="space-x-4 text-sm font-bold">
+            {% if current_user.is_authenticated %}
+                <span class="bg-black text-white px-2 py-1 uppercase">{{ current_user.username }}</span>
+                <a href="{{ url_for('auth.logout') }}" class="hover:bg-black hover:text-white px-2 py-1 border-2 border-black transition-colors">LOGOUT</a>
+            {% else %}
+                <a href="{{ url_for('auth.login') }}" class="hover:bg-black hover:text-white px-2 py-1 border-2 border-black transition-colors">LOGIN</a>
+            {% endif %}
+        </nav>
+    </header>
+
+    <main class="max-w-4xl mx-auto">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="mb-8 space-y-2">
+                    {% for message in messages %}
+                        <div class="bg-black text-white p-4 font-bold border-l-8 border-gray-400">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="mt-24 pt-8 border-t-2 border-black text-xs text-center font-bold">
+        <p>NASYPEASY &copy; 2026. THE SELFHOSTING OS DASHBOARD FOR THE REST OF US.</p>
+        <p class="mt-2">DESIGNED WITH <a href="https://github.com/layogtima/mono" class="underline decoration-2">MONO</a></p>
+    </footer>
+</body>
+</html>

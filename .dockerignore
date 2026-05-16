@@ -1,0 +1,13 @@
+.pixi/
+__pycache__/
+*.db
+.env
+_host_data.json
+.git/
+.gitattributes
+.gitignore
+README.md
+report/
+.pixi/
+nasypeasy.db
+*.log

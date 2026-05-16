@@ -1,0 +1,7 @@
+__pycache__/
+*.db
+flask.log
+.pixi/
+.env
+_host_data.json
+*.log
