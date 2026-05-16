@@ -6,6 +6,17 @@ Nasypeasy provides a simple, mono-styled dashboard to manage your Podman contain
 
 ## Setup
 
+### Prerequisites
+
+- [Podman](https://podman.io/) and [podman-compose](https://github.com/containers/podman-compose) installed system-wide:
+  Ubuntu/Debian/etc:  
+   ```bash
+   sudo apt install podman podman-compose
+   ```
+  OpenSUSE:  
+   ```bash
+   sudo zypper install podman podman-compose
+   ```
 1. Install [pixi](https://pixi.sh/install.sh).
 2. Run the setup script:
    ```bash

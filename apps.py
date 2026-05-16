@@ -121,10 +121,12 @@ def deploy_app(name):
             flash(f"Deploy failed: {resp.text}", "error")
             return redirect(url_for('apps.app_detail', name=name))
         db = get_db()
+        port = meta.get('port', 0)
         db.execute('''
-            INSERT OR REPLACE INTO deployed_apps (id, name, folder, port, status)
+            INSERT INTO deployed_apps (id, name, folder, port, status)
             VALUES (nextval('deployed_app_id_seq'), ?, ?, ?, 'running')
-        ''', [meta['name'], name, meta.get('port', 0)])
+            ON CONFLICT (name) DO UPDATE SET status = 'running', port = ?, updated_at = now()
+        ''', [meta['name'], name, port, port])
         flash(f"{meta['name']} deployed successfully", "success")
     except Exception as e:
         flash(f"Deploy error: {e}", "error")
@@ -185,8 +187,29 @@ def deployed_down(name):
             flash(f"Error stopping app: {resp.text}", "error")
         else:
             db = get_db()
-            db.execute('UPDATE deployed_apps SET status = ? WHERE name = ?', ['stopped', name])
+            db.execute('UPDATE deployed_apps SET status = ? WHERE folder = ?', ['stopped', name])
             flash("App stopped", "success")
+    except Exception as e:
+        flash(f"Error: {e}", "error")
+    return redirect(url_for('apps.deployed_list'))
+
+
+@apps_bp.route('/deployed/<name>/delete', methods=['POST'])
+@login_required
+def deployed_delete(name):
+    remove_volumes = request.form.get('remove_volumes') == '1'
+    try:
+        resp = http_requests.post(
+            f'{AGENT_URL}/api/deployed/{name}/delete',
+            json={'remove_volumes': remove_volumes},
+            timeout=30
+        )
+        if resp.status_code != 200:
+            flash(f"Error deleting app: {resp.text}", "error")
+        else:
+            db = get_db()
+            db.execute('DELETE FROM deployed_apps WHERE folder = ?', [name])
+            flash("App deleted", "success")
     except Exception as e:
         flash(f"Error: {e}", "error")
     return redirect(url_for('apps.deployed_list'))

@@ -16,11 +16,16 @@
     </form>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="mb-8 border-4 border-black p-4">
+    <input type="text" id="app-search" placeholder="Search apps..."
+           class="w-full border-2 border-black p-3 font-bold text-sm focus:outline-none focus:ring-4 focus:ring-black/20 uppercase placeholder:uppercase placeholder:text-gray-400">
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="app-grid">
     {% for app in apps %}
-    <div class="border-4 border-black p-6 flex flex-col relative group hover:-translate-y-1 hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] transition-all">
+    <div class="border-4 border-black p-6 flex flex-col relative group hover:-translate-y-1 hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] transition-all" data-app-name="{{ app.name|lower }}">
         <div class="mb-4 flex items-start gap-4">
-            <div class="text-4xl opacity-60">{{ app.icon or '📦' }}</div>
+            <div class="text-4xl opacity-60">{% if app.icon %}<i class="{{ app.icon }}"></i>{% else %}📦{% endif %}</div>
             <div class="flex-1">
                 <h4 class="text-2xl font-bold uppercase leading-tight">{{ app.name }}</h4>
                 <p class="mt-2 text-sm text-gray-700">{{ app.description }}</p>
@@ -47,9 +52,29 @@
         </div>
     </div>
     {% else %}
-    <div class="col-span-full text-center py-16 border-4 border-dashed border-black">
+    <div class="col-span-full text-center py-16 border-4 border-dashed border-black" id="no-apps-msg">
         <p class="text-2xl font-bold uppercase text-gray-400">No apps available in current sources.</p>
     </div>
     {% endfor %}
 </div>
+
+<script>
+document.getElementById('app-search').addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim();
+    let visible = 0;
+    document.querySelectorAll('[data-app-name]').forEach(el => {
+        const match = !q || el.dataset.appName.includes(q);
+        el.style.display = match ? '' : 'none';
+        if (match) visible++;
+    });
+    document.querySelectorAll('#no-apps-msg, #no-search-msg').forEach(el => el.remove());
+    if (visible === 0) {
+        const msg = document.createElement('div');
+        msg.id = 'no-search-msg';
+        msg.className = 'col-span-full text-center py-16 border-4 border-dashed border-black';
+        msg.innerHTML = '<p class="text-2xl font-bold uppercase text-gray-400">No apps match "' + this.value + '".</p>';
+        document.getElementById('app-grid').appendChild(msg);
+    }
+});
+</script>
 {% endblock %}

@@ -239,6 +239,26 @@ class DeployHandler(BaseHTTPRequestHandler):
                 self._send_json({'error': str(e)}, 500)
             return
 
+        if self.path.startswith('/api/deployed/') and self.path.endswith('/delete'):
+            name = self.path.split('/')[3]
+            remove_volumes = payload.get('remove_volumes', False)
+            app_dir = os.path.join(PROJECT_DIR, 'templates', 'apps', name)
+            compose_file = os.path.join(app_dir, 'docker-compose.yaml')
+            if not os.path.isfile(compose_file):
+                self._send_json({'error': 'compose file not found'}, 400)
+                return
+            try:
+                cmd = [SYSTEM_PODMAN_COMPOSE, '-f', compose_file, 'down']
+                if remove_volumes:
+                    cmd.append('-v')
+                subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                subprocess.run([SYSTEM_PODMAN, 'network', 'rm', f'{name}_default'],
+                               capture_output=True, text=True, timeout=10)
+                self._send_json({'ok': True})
+            except Exception as e:
+                self._send_json({'error': str(e)}, 500)
+            return
+
         self._send_json({'error': 'not found'}, 404)
 
     def do_GET(self):
