@@ -171,6 +171,13 @@ SYSTEM_PODMAN = '/usr/bin/podman'
 SYSTEM_PODMAN_COMPOSE = '/usr/bin/podman-compose'
 
 
+def get_compose_path(folder):
+    deploy_path = os.path.join(PROJECT_DIR, 'deployments', folder, 'docker-compose.yaml')
+    if os.path.isfile(deploy_path):
+        return deploy_path
+    return os.path.join(PROJECT_DIR, 'templates', 'apps', folder, 'docker-compose.yaml')
+
+
 class DeployHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         log(f"[api] {format % args}")
@@ -201,8 +208,7 @@ class DeployHandler(BaseHTTPRequestHandler):
             if not folder:
                 self._send_json({'error': 'folder required'}, 400)
                 return
-            app_dir = os.path.join(PROJECT_DIR, 'templates', 'apps', folder)
-            compose_file = os.path.join(app_dir, 'docker-compose.yaml')
+            compose_file = get_compose_path(folder)
             if not os.path.isfile(compose_file):
                 self._send_json({'error': f'docker-compose.yaml not found in {folder}'}, 400)
                 return
@@ -221,8 +227,7 @@ class DeployHandler(BaseHTTPRequestHandler):
 
         if self.path.startswith('/api/deployed/') and self.path.endswith('/down'):
             name = self.path.split('/')[3]
-            app_dir = os.path.join(PROJECT_DIR, 'templates', 'apps', name)
-            compose_file = os.path.join(app_dir, 'docker-compose.yaml')
+            compose_file = get_compose_path(name)
             if not os.path.isfile(compose_file):
                 self._send_json({'error': 'compose file not found'}, 400)
                 return
@@ -241,8 +246,7 @@ class DeployHandler(BaseHTTPRequestHandler):
 
         if self.path.startswith('/api/deployed/') and self.path.endswith('/up'):
             name = self.path.split('/')[3]
-            app_dir = os.path.join(PROJECT_DIR, 'templates', 'apps', name)
-            compose_file = os.path.join(app_dir, 'docker-compose.yaml')
+            compose_file = get_compose_path(name)
             if not os.path.isfile(compose_file):
                 self._send_json({'error': 'compose file not found'}, 400)
                 return
@@ -262,8 +266,7 @@ class DeployHandler(BaseHTTPRequestHandler):
         if self.path.startswith('/api/deployed/') and self.path.endswith('/delete'):
             name = self.path.split('/')[3]
             remove_volumes = payload.get('remove_volumes', False)
-            app_dir = os.path.join(PROJECT_DIR, 'templates', 'apps', name)
-            compose_file = os.path.join(app_dir, 'docker-compose.yaml')
+            compose_file = get_compose_path(name)
             if not os.path.isfile(compose_file):
                 self._send_json({'error': 'compose file not found'}, 400)
                 return
@@ -284,8 +287,7 @@ class DeployHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith('/api/deployed/') and self.path.endswith('/status'):
             name = self.path.split('/')[3]
-            app_dir = os.path.join(PROJECT_DIR, 'templates', 'apps', name)
-            compose_file = os.path.join(app_dir, 'docker-compose.yaml')
+            compose_file = get_compose_path(name)
             try:
                 result = subprocess.run(
                     [SYSTEM_PODMAN_COMPOSE, '-f', compose_file, '-p', f'nasypeasy-{name}', 'ps', '--format', 'json'],
@@ -301,8 +303,7 @@ class DeployHandler(BaseHTTPRequestHandler):
 
         if self.path.startswith('/api/deployed/') and self.path.endswith('/logs'):
             name = self.path.split('/')[3]
-            app_dir = os.path.join(PROJECT_DIR, 'templates', 'apps', name)
-            compose_file = os.path.join(app_dir, 'docker-compose.yaml')
+            compose_file = get_compose_path(name)
             try:
                 project_name = f'nasypeasy-{name}'
                 ps_result = subprocess.run(
@@ -314,12 +315,12 @@ class DeployHandler(BaseHTTPRequestHandler):
                     services = json.loads(ps_result.stdout)
                     if isinstance(services, list):
                         for s in services:
-                            if s.get('ID'):
-                                container_ids.append(s['ID'])
+                            if s.get('Id'):
+                                container_ids.append(s['Id'])
                     elif isinstance(services, dict):
                         for k, v in services.items():
-                            if isinstance(v, dict) and v.get('ID'):
-                                container_ids.append(v['ID'])
+                            if isinstance(v, dict) and v.get('Id'):
+                                container_ids.append(v['Id'])
                 if not container_ids:
                     self._send_text('No running containers for this app.\n')
                     return

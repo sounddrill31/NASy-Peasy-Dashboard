@@ -174,10 +174,23 @@ def deploy_app(name):
         return redirect(url_for('apps.list_apps'))
 
     compose_edited = request.form.get('compose', '')
-    compose_path = os.path.join(app_dir, 'docker-compose.yaml')
+    deploy_dir = os.path.join(current_app.root_path, 'deployments', name)
+    os.makedirs(deploy_dir, exist_ok=True)
+    compose_path = os.path.join(deploy_dir, 'docker-compose.yaml')
     if compose_edited:
+        compose_content = compose_edited
+    else:
+        template_path = os.path.join(app_dir, 'docker-compose.yaml')
+        if os.path.isfile(template_path):
+            with open(template_path) as f:
+                compose_content = f.read()
+        else:
+            compose_content = ''
+    if compose_content:
+        volume_map = get_volume_map()
+        resolved = substitute_volumes(compose_content, volume_map)
         with open(compose_path, 'w') as f:
-            f.write(compose_edited)
+            f.write(resolved)
 
     try:
         payload = {'folder': name}
@@ -205,13 +218,30 @@ def deploy_app(name):
 def deployed_list():
     db = get_db()
     rows = db.execute('SELECT id, name, folder, port, status, created_at, updated_at FROM deployed_apps ORDER BY id DESC').fetchall()
+
+    live_states = {}
+    host_data_path = os.path.join(current_app.root_path, '_host_data.json')
+    try:
+        with open(host_data_path) as f:
+            host_data = json.load(f)
+        for c in host_data.get('containers', []):
+            project = c.get('Labels', {}).get('com.docker.compose.project', '')
+            if project.startswith('nasypeasy-'):
+                folder = project[len('nasypeasy-'):]
+                live_states[folder] = c.get('State', '')
+    except Exception:
+        pass
+
     deployed = []
     for r in rows:
-        deployed.append({
+        app = {
             'id': r[0], 'name': r[1], 'folder': r[2],
             'port': r[3], 'status': r[4],
             'created_at': r[5], 'updated_at': r[6]
-        })
+        }
+        if app['folder'] in live_states:
+            app['status'] = live_states[app['folder']]
+        deployed.append(app)
     return render_template('deployed.html', deployed=deployed)
 
 
@@ -292,6 +322,9 @@ def deployed_delete(name):
         else:
             db = get_db()
             db.execute('DELETE FROM deployed_apps WHERE folder = ?', [name])
+            deploy_dir = os.path.join(current_app.root_path, 'deployments', name)
+            if os.path.isdir(deploy_dir):
+                shutil.rmtree(deploy_dir, ignore_errors=True)
             flash("App deleted", "success")
     except Exception as e:
         flash(f"Error: {e}", "error")

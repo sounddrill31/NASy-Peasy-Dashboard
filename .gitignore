@@ -6,3 +6,4 @@ flask.log
 .env
 _host_data.json
 *.log
+deployments/
