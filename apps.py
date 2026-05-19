@@ -129,11 +129,16 @@ def app_detail(name):
         return redirect(url_for('apps.list_apps'))
 
     app_files = get_app_files(app_dir)
+    deploy_source = os.path.join(current_app.root_path, 'deployments', name, 'docker-compose.source.yaml')
     compose_content = ''
-    compose_path = os.path.join(app_dir, 'docker-compose.yaml')
-    if os.path.isfile(compose_path):
-        with open(compose_path) as f:
+    if os.path.isfile(deploy_source):
+        with open(deploy_source) as f:
             compose_content = f.read()
+    else:
+        compose_path = os.path.join(app_dir, 'docker-compose.yaml')
+        if os.path.isfile(compose_path):
+            with open(compose_path) as f:
+                compose_content = f.read()
 
     volume_map = get_volume_map()
     volume_refs = find_volume_refs(compose_content)
@@ -187,6 +192,8 @@ def deploy_app(name):
         else:
             compose_content = ''
     if compose_content:
+        with open(os.path.join(deploy_dir, 'docker-compose.source.yaml'), 'w') as f:
+            f.write(compose_content)
         volume_map = get_volume_map()
         resolved = substitute_volumes(compose_content, volume_map)
         with open(compose_path, 'w') as f:
