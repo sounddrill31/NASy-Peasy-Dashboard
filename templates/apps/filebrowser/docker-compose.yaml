@@ -8,5 +8,5 @@ services:
       - /:/srv:ro
     environment:
       - FB_PORT=8080
-      - FB_USERNAME=admin
-      - FB_PASSWORD=admin
+      #- FB_USERNAME=admin
+      #- FB_PASSWORD=admin
