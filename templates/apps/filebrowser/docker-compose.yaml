@@ -5,7 +5,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - /:/srv:ro
+      - $FILES_DATA:/srv:Z
     environment:
       - FB_PORT=8080
       #- FB_USERNAME=admin
