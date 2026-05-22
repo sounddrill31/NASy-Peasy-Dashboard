@@ -294,8 +294,8 @@
             var line = lines[i].replace(/\s+$/, '');
             if (/^\s{4}volumes:\s*$/.test(line)) {
                 insertLine = i + 2;
-                insertText = '      - ' + ref + ':/data\n';
-                // Walk subsequent lines to find the last volume entry
+                insertText = '      - ' + ref + ':/changethisplease:Z\n';
+                    // Walk subsequent lines to find the last volume entry
                 for (var j = i + 1; j < lines.length; j++) {
                     var next = lines[j].replace(/\s+$/, '');
                     if (/^\s{6}[-\s]/.test(next)) {
@@ -321,7 +321,7 @@
                         if (ind > si) end = j + 1;
                     }
                     insertLine = end + 1;
-                    insertText = '    volumes:\n      - ' + ref + ':/data\n';
+                    insertText = '    volumes:\n      - ' + ref + ':/changethisplease:Z\n';
                     break;
                 }
             }

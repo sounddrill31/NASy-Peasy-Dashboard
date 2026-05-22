@@ -511,6 +511,7 @@ def volume_add():
 
     try:
         os.makedirs(vol_path, exist_ok=True)
+        os.chmod(vol_path, 0o777)
     except Exception as e:
         flash(f"Cannot create volume directory: {e}", "error")
         return redirect(url_for('apps.volume_list'))
