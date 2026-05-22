@@ -59,6 +59,11 @@ def init_db():
     except duckdb.CatalogException:
         pass
 
+    try:
+        conn.execute("ALTER TABLE deployed_apps ADD COLUMN domain VARCHAR DEFAULT ''")
+    except duckdb.CatalogException:
+        pass
+
 if __name__ == '__main__':
     init_db()
     print("Database initialized.")

@@ -80,6 +80,19 @@
         </div>
     </div>
 
+    {% if meta.needs_https %}
+    <div class="border-4 border-black mb-4 sm:mb-6">
+        <div class="bg-black text-white px-3 sm:px-4 py-2 font-bold uppercase text-[10px] sm:text-sm">
+            Domain &amp; TLS (Caddy)
+        </div>
+        <div class="p-3 sm:p-4">
+            <input type="text" name="domain" value="{{ domain }}" placeholder="e.g. vault.example.com"
+                   class="w-full border-2 border-black p-3 font-bold text-xs sm:text-sm focus:outline-none focus:ring-4 focus:ring-black/20 uppercase placeholder:uppercase placeholder:text-gray-400">
+            <p class="mt-2 text-[10px] text-gray-500">Caddy provisions a TLS certificate for this domain via Let's Encrypt.</p>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Quick Volumes -->
     <div class="border-4 border-black mb-4 sm:mb-6">
         <div class="bg-black text-white px-3 sm:px-4 py-2 font-bold uppercase text-[10px] sm:text-sm">

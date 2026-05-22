@@ -215,7 +215,7 @@ class DeployHandler(BaseHTTPRequestHandler):
             try:
                 result = subprocess.run(
                     [SYSTEM_PODMAN_COMPOSE, '-f', compose_file, '-p', f'nasypeasy-{folder}', 'up', '-d'],
-                    capture_output=True, text=True, timeout=60
+                    capture_output=True, text=True, timeout=180
                 )
                 if result.returncode != 0:
                     self._send_json({'error': result.stderr or result.stdout}, 500)

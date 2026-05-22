@@ -3,6 +3,7 @@ import json
 import subprocess
 import re
 import shutil
+import threading
 import requests as http_requests
 from flask import Blueprint, render_template, request, current_app, flash, redirect, jsonify, url_for
 from flask_login import login_required
@@ -144,6 +145,14 @@ def app_detail(name):
     volume_refs = find_volume_refs(compose_content)
     resolved_compose = substitute_volumes(compose_content, volume_map)
 
+    domain = ''
+    deploy_dir = os.path.join(current_app.root_path, 'deployments', name)
+    if os.path.isdir(deploy_dir):
+        db = get_db()
+        row = db.execute('SELECT domain FROM deployed_apps WHERE folder = ?', [name]).fetchone()
+        if row:
+            domain = row[0] or ''
+
     db = get_db()
     sd_rows = db.execute('SELECT id, path FROM shared_dirs ORDER BY id DESC').fetchall()
     shared_dirs = [{'id': r[0], 'path': r[1]} for r in sd_rows]
@@ -159,7 +168,24 @@ def app_detail(name):
                            volume_refs=volume_refs,
                            shared_dirs=shared_dirs,
                            volumes=volumes,
-                           volume_map_json=json.dumps(volume_map))
+                           volume_map_json=json.dumps(volume_map),
+                           domain=domain)
+
+
+def _async_deploy(app_dir, deploy_dir, name, meta, domain):
+    caddy_path = os.path.join(app_dir, 'Caddyfile')
+    caddy_deploy = os.path.join(deploy_dir, 'Caddyfile')
+    if os.path.isfile(caddy_path):
+        with open(caddy_path) as f:
+            caddy_content = f.read()
+        with open(caddy_deploy, 'w') as f:
+            f.write(caddy_content)
+
+    try:
+        payload = {'folder': name}
+        http_requests.post(f'{AGENT_URL}/api/deploy', json=payload, timeout=300)
+    except Exception:
+        pass
 
 
 @apps_bp.route('/apps/<name>/deploy', methods=['POST'])
@@ -179,6 +205,7 @@ def deploy_app(name):
         return redirect(url_for('apps.list_apps'))
 
     compose_edited = request.form.get('compose', '')
+    domain = request.form.get('domain', '').strip()
     deploy_dir = os.path.join(current_app.root_path, 'deployments', name)
     os.makedirs(deploy_dir, exist_ok=True)
     compose_path = os.path.join(deploy_dir, 'docker-compose.yaml')
@@ -196,25 +223,23 @@ def deploy_app(name):
             f.write(compose_content)
         volume_map = get_volume_map()
         resolved = substitute_volumes(compose_content, volume_map)
+        if domain:
+            resolved = StringTemplate(resolved).safe_substitute(DOMAIN=domain)
         with open(compose_path, 'w') as f:
             f.write(resolved)
 
-    try:
-        payload = {'folder': name}
-        resp = http_requests.post(f'{AGENT_URL}/api/deploy', json=payload, timeout=30)
-        if resp.status_code != 200:
-            flash(f"Deploy failed: {resp.text}", "error")
-            return redirect(url_for('apps.app_detail', name=name))
-        db = get_db()
-        port = meta.get('port', 0)
-        db.execute('''
-            INSERT INTO deployed_apps (id, name, folder, port, status)
-            VALUES (nextval('deployed_app_id_seq'), ?, ?, ?, 'running')
-            ON CONFLICT (name) DO UPDATE SET status = 'running', port = ?, updated_at = now()
-        ''', [meta['name'], name, port, port])
-        flash(f"{meta['name']} deployed successfully", "success")
-    except Exception as e:
-        flash(f"Deploy error: {e}", "error")
+    port = meta.get('port', 0)
+    db = get_db()
+    db.execute('''
+        INSERT INTO deployed_apps (id, name, folder, port, status, domain)
+        VALUES (nextval('deployed_app_id_seq'), ?, ?, ?, 'deploying', ?)
+        ON CONFLICT (name) DO UPDATE SET status = 'deploying', port = ?, domain = ?, updated_at = now()
+    ''', [meta['name'], name, port, domain or '', port, domain or ''])
+
+    t = threading.Thread(target=_async_deploy, args=(app_dir, deploy_dir, name, meta, domain), daemon=True)
+    t.start()
+
+    flash(f"{meta['name']} deploying...", "success")
     return redirect(url_for('apps.deployed_list'))
 
 
@@ -224,7 +249,7 @@ def deploy_app(name):
 @login_required
 def deployed_list():
     db = get_db()
-    rows = db.execute('SELECT id, name, folder, port, status, created_at, updated_at FROM deployed_apps ORDER BY id DESC').fetchall()
+    rows = db.execute('SELECT id, name, folder, port, status, domain, created_at, updated_at FROM deployed_apps ORDER BY id DESC').fetchall()
 
     live_states = {}
     host_data_path = os.path.join(current_app.root_path, '_host_data.json')
@@ -243,8 +268,8 @@ def deployed_list():
     for r in rows:
         app = {
             'id': r[0], 'name': r[1], 'folder': r[2],
-            'port': r[3], 'status': r[4],
-            'created_at': r[5], 'updated_at': r[6]
+            'port': r[3], 'status': r[4], 'domain': r[5] or '',
+            'created_at': r[6], 'updated_at': r[7]
         }
         if app['folder'] in live_states:
             app['status'] = live_states[app['folder']]
