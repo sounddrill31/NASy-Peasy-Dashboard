@@ -2,7 +2,7 @@
 authors = ["google-labs-jules[bot] <161369871+google-labs-jules[bot]@users.noreply.github.com>"]
 channels = ["conda-forge"]
 name = "nasypeasy"
-platforms = ["linux-64"]
+platforms = ["linux-64", "linux-aarch64"]
 version = "0.1.0"
 
 [dependencies]
