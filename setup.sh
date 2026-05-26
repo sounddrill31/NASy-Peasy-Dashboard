@@ -11,7 +11,7 @@ EOF
 echo "[1/5] Secret key generated"
 
 if ! command -v podman-compose &>/dev/null; then
-    echo "WARNING: podman-compose not found. Install it: sudo zypper install podman podman-compose"
+    echo "WARNING: podman-compose not found. Install it: pip3 install podman-compose"
 fi
 
 # 2. Install pixi dependencies

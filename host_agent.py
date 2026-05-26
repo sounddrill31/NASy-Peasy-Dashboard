@@ -167,8 +167,8 @@ def collector_loop():
 
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-SYSTEM_PODMAN = '/usr/bin/podman'
-SYSTEM_PODMAN_COMPOSE = '/usr/bin/podman-compose'
+SYSTEM_PODMAN = shutil.which('podman') or 'podman'
+SYSTEM_PODMAN_COMPOSE = shutil.which('podman-compose') or 'podman-compose'
 
 
 def get_compose_path(folder):
