@@ -1,10 +1,17 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash
 from db import get_db
 
 auth_bp = Blueprint('auth', __name__)
 login_manager = LoginManager()
+
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'error': 'Unauthorized'}), 401
+    return redirect(url_for('auth.login'))
 
 class User(UserMixin):
     def __init__(self, id, username):

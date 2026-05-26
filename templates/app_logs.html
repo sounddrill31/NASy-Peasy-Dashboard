@@ -21,8 +21,9 @@
 
     function fetchLogs() {
         logEl.textContent = 'Loading...';
-        fetch('/deployed/' + encodeURIComponent(appName) + '/logs/raw')
-            .then(function(r) { return r.text(); })
+        fetch('/deployed/' + encodeURIComponent(appName) + '/logs/raw', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(function(r) { return r.text(); })
             .then(function(text) {
                 logEl.textContent = text || '(no output)';
             })
