@@ -326,7 +326,7 @@ def _ensure_caddy_routing(name, port, domain, main_domain, root_path):
     if domain:
         sites_d = os.path.join(apps_d, 'sites')
         os.makedirs(sites_d, exist_ok=True)
-        entry = f'\n{domain} {{\n    tls internal\n    reverse_proxy localhost:{port}\n}}\n'
+        entry = f'{domain} {{\n    tls internal\n    reverse_proxy localhost:{port}\n}}\n'
         app_caddy = os.path.join(sites_d, f'{safe_name}.caddy')
         if not os.path.isfile(app_caddy) or open(app_caddy).read() != entry:
             with open(app_caddy, 'w') as f:
@@ -334,7 +334,7 @@ def _ensure_caddy_routing(name, port, domain, main_domain, root_path):
     elif main_domain:
         paths_d = os.path.join(apps_d, 'paths')
         os.makedirs(paths_d, exist_ok=True)
-        entry = f'handle_path /{safe_name}/* {{\n    reverse_proxy localhost:{port}\n}}\n'
+        entry = f'{main_domain} {{\n    handle_path /{safe_name}/* {{\n        reverse_proxy localhost:{port}\n    }}\n}}\n'
         app_caddy = os.path.join(paths_d, f'{safe_name}.caddy')
         if not os.path.isfile(app_caddy) or open(app_caddy).read() != entry:
             with open(app_caddy, 'w') as f:
