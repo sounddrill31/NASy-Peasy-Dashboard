@@ -19,8 +19,8 @@ caddy = ">=2,<3"
 
 
 [tasks]
-server = {cmd="podman-compose -f docker-compose.yml up -d", depends-on="host-agent" }
-server-clean = {cmd="podman-compose -f docker-compose.yml up -d --build", depends-on="host-agent" }
+server = {cmd="podman-compose -f docker-compose.yml up -d", depends-on=["host-agent", "caddy-start"] }
+server-clean = {cmd="podman-compose -f docker-compose.yml up -d --build", depends-on=["host-agent", "caddy-start"] }
 start = "python app.py"
 create-user = "python create_user.py"
 host-agent = "python host_agent.py --daemon"
