@@ -1,6 +1,6 @@
 services:
   uptime-kuma:
-    image: louislam/uptime-kuma:latest
+    image: docker.io/louislam/uptime-kuma:latest
     container_name: nasypeasy-uptime-kuma
     ports:
       - "3001:3001"
