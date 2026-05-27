@@ -43,8 +43,11 @@ def import_apps_from_source(source):
     temp_dir = None
     try:
         if source.startswith(('http://', 'https://', 'git@', 'git://')):
+            git_path = shutil.which('git')
+            if not git_path:
+                return 0, "Git is not installed. Install it with: sudo dnf install git (or apt install git)"
             temp_dir = tempfile.mkdtemp(prefix='nasypeasy-import-')
-            r = subprocess.run(['git', 'clone', '--depth', '1', source, temp_dir],
+            r = subprocess.run([git_path, 'clone', '--depth', '1', source, temp_dir],
                                capture_output=True, text=True, timeout=120)
             if r.returncode != 0:
                 shutil.rmtree(temp_dir, ignore_errors=True)
