@@ -39,9 +39,9 @@ EOF
     cat > Caddyfile <<CADDYEOF
 $DOMAIN {
     reverse_proxy localhost:5000
+    import apps.d/paths/*.caddy
 }
 
-import apps.d/paths/*.caddy
 import apps.d/sites/*.caddy
 
 :80 {
