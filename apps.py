@@ -319,6 +319,23 @@ def _async_deploy(app_dir, deploy_dir, name, meta, domain):
         with open(caddy_deploy, 'w') as f:
             f.write(caddy_content)
 
+    if domain:
+        try:
+            caddyfile = os.path.join(current_app.root_path, 'Caddyfile')
+            port = meta.get('port', 0)
+            if port and os.path.isfile(caddyfile):
+                entry = f'\n{domain} {{\n    tls internal\n    reverse_proxy localhost:{port}\n}}\n'
+                with open(caddyfile, 'r') as f:
+                    content = f.read()
+                if domain not in content:
+                    with open(caddyfile, 'a') as f:
+                        f.write(entry)
+                    caddy_bin = os.path.join(current_app.root_path, '.pixi', 'envs', 'default', 'bin', 'caddy')
+                    subprocess.run([caddy_bin, 'reload', '--config', caddyfile],
+                                   capture_output=True, text=True, timeout=10)
+        except Exception:
+            pass
+
     try:
         payload = {'folder': name}
         http_requests.post(f'{AGENT_URL}/api/deploy', json=payload, timeout=300)
