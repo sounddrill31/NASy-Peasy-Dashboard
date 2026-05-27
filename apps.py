@@ -319,22 +319,37 @@ def _async_deploy(app_dir, deploy_dir, name, meta, domain):
         with open(caddy_deploy, 'w') as f:
             f.write(caddy_content)
 
-    if domain:
-        try:
-            caddyfile = os.path.join(current_app.root_path, 'Caddyfile')
-            port = meta.get('port', 0)
-            if port and os.path.isfile(caddyfile):
-                entry = f'\n{domain} {{\n    tls internal\n    reverse_proxy localhost:{port}\n}}\n'
-                with open(caddyfile, 'r') as f:
-                    content = f.read()
-                if domain not in content:
+    main_domain = os.environ.get('CADDY_DOMAIN', '').strip()
+    caddyfile = os.path.join(current_app.root_path, 'Caddyfile')
+    port = meta.get('port', 0)
+
+    if port and os.path.isfile(caddyfile):
+        domains = []
+
+        if main_domain:
+            subdomain = name.lower().replace('_', '-').replace(' ', '-')
+            domains.append(f'{subdomain}.{main_domain}')
+
+        if domain and domain not in domains:
+            domains.append(domain)
+
+        if domains:
+            with open(caddyfile, 'r') as f:
+                content = f.read()
+            new_entries = ''
+            for d in domains:
+                if d not in content:
+                    new_entries += f'\n{d} {{\n    tls internal\n    reverse_proxy localhost:{port}\n}}\n'
+
+            if new_entries:
+                try:
                     with open(caddyfile, 'a') as f:
-                        f.write(entry)
+                        f.write(new_entries)
                     caddy_bin = os.path.join(current_app.root_path, '.pixi', 'envs', 'default', 'bin', 'caddy')
                     subprocess.run([caddy_bin, 'reload', '--config', caddyfile],
                                    capture_output=True, text=True, timeout=10)
-        except Exception:
-            pass
+                except Exception:
+                    pass
 
     try:
         payload = {'folder': name}
@@ -361,6 +376,14 @@ def deploy_app(name):
 
     compose_edited = request.form.get('compose', '')
     domain = request.form.get('domain', '').strip()
+    main_domain = os.environ.get('CADDY_DOMAIN', '').strip()
+    port = meta.get('port', 0)
+
+    effective_domain = domain
+    if not effective_domain and main_domain and port:
+        subdomain = name.lower().replace('_', '-').replace(' ', '-')
+        effective_domain = f'{subdomain}.{main_domain}'
+
     deploy_dir = os.path.join(current_app.root_path, 'deployments', name)
     os.makedirs(deploy_dir, exist_ok=True)
     compose_path = os.path.join(deploy_dir, 'docker-compose.yaml')
@@ -383,13 +406,12 @@ def deploy_app(name):
         with open(compose_path, 'w') as f:
             f.write(resolved)
 
-    port = meta.get('port', 0)
     db = get_db()
     db.execute('''
         INSERT INTO deployed_apps (id, name, folder, port, status, domain)
         VALUES (nextval('deployed_app_id_seq'), ?, ?, ?, 'deploying', ?)
         ON CONFLICT (name) DO UPDATE SET status = 'deploying', port = ?, domain = ?, updated_at = now()
-    ''', [meta['name'], name, port, domain or '', port, domain or ''])
+    ''', [meta['name'], name, port, effective_domain or '', port, effective_domain or ''])
 
     t = threading.Thread(target=_async_deploy, args=(app_dir, deploy_dir, name, meta, domain), daemon=True)
     t.start()
