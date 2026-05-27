@@ -16,6 +16,7 @@
     </form>
 </div>
 
+{% if sources %}
 <div class="mb-6 sm:mb-8 border-4 border-black p-4 sm:p-6" id="sources-section">
     <h3 class="text-sm sm:text-lg font-bold uppercase mb-3 sm:mb-4 border-b-2 border-dashed border-black pb-2">Sources</h3>
     <div class="space-y-2">
@@ -58,6 +59,7 @@
         {% endfor %}
     </div>
 </div>
+{% endif %}
 
 <div class="mb-6 sm:mb-8 border-4 border-black p-3 sm:p-4">
     <input type="text" id="app-search" placeholder="Search apps..."
