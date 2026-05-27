@@ -8,5 +8,4 @@ _host_data.json
 *.log
 deployments/
 Caddyfile
-docker-compose.override.yml
 repos/

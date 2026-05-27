@@ -38,29 +38,46 @@ EOF
     cat > Caddyfile <<CADDYEOF
 $DOMAIN {
     tls internal
-    reverse_proxy host.containers.internal:5000
+    reverse_proxy localhost:5000
 }
 
 :80 {
-    reverse_proxy host.containers.internal:5000
+    reverse_proxy localhost:5000
 }
 CADDYEOF
-    cat > docker-compose.override.yml <<'OVERRIDEEOF'
-services:
-  caddy:
-    ports:
-      - "443:443"
-    volumes:
-      - caddy-data:/data
-      - caddy-config:/config
-
-volumes:
-  caddy-data:
-  caddy-config:
-OVERRIDEEOF
     echo "  Caddy configured for https://$DOMAIN"
-    echo "  Caddyfile and docker-compose.override.yml generated"
+else
+    cp Caddyfile.redirect Caddyfile
+    echo "  Caddy configured for HTTP (no domain)"
 fi
+
+PROJECT_DIR="$(pwd)"
+CADDY_BIN="$PROJECT_DIR/.pixi/envs/default/bin/caddy"
+mkdir -p ~/.config/systemd/user
+cat > ~/.config/systemd/user/nasypeasy-caddy.service <<UNIT
+[Unit]
+Description=NASy-Peasy Caddy reverse proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+ExecStart=$CADDY_BIN run --config $PROJECT_DIR/Caddyfile
+ExecReload=$CADDY_BIN reload --config $PROJECT_DIR/Caddyfile
+Restart=on-failure
+RestartSec=5
+WorkingDirectory=$PROJECT_DIR
+
+[Install]
+WantedBy=default.target
+UNIT
+systemctl --user daemon-reload
+if systemctl --user is-enabled nasypeasy-caddy &>/dev/null; then
+    systemctl --user restart nasypeasy-caddy
+else
+    systemctl --user enable --now nasypeasy-caddy
+fi
+echo "  Caddy systemd service started"
 
 # 5. Create a user
 echo "[5/6] Creating admin user..."
@@ -93,11 +110,16 @@ fi
 echo ""
 echo "=== Setup complete! ==="
 echo ""
-echo "Start the host agent (collects podman/tailscale data):"
-echo "  pixi run host-agent"
+echo "Start all services:"
+echo "  pixi run host-agent  # collects podman/tailscale data"
+echo "  pixi run server      # containerized dashboard"
+echo "  pixi run caddy       # reverse proxy (already started as systemd service)"
 echo ""
-echo "Then start the dashboard:"
-echo "  pixi run server    # containerized"
-echo "  pixi run start     # directly on host"
+echo "Or run directly on host:"
+echo "  pixi run start       # dashboard on port 5000"
 echo ""
-echo "Access the dashboard at http://localhost:5000"
+echo "Access the dashboard at:"
+if [ -n "$DOMAIN" ]; then
+    echo "  https://$DOMAIN"
+fi
+echo "  http://localhost:5000"

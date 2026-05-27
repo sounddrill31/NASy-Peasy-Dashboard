@@ -6,14 +6,3 @@ services:
     volumes:
       - .:/app:Z
     env_file: .env
-
-  caddy:
-    image: caddy:alpine
-    container_name: nasypeasy-caddy
-    ports:
-      - "80:80"
-    volumes:
-      - .:/app:Z
-    command: >
-      sh -c "if [ ! -f /app/Caddyfile ]; then cp /app/Caddyfile.redirect /app/Caddyfile; fi && exec caddy run --config /app/Caddyfile"
-    restart: unless-stopped
