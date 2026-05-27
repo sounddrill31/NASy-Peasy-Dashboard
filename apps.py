@@ -205,9 +205,17 @@ def source_remove(source_id):
     if row:
         repo_dir = _repo_dir(row[0])
         if os.path.isdir(repo_dir):
+            deployed = {r[0] for r in db.execute('SELECT folder FROM deployed_apps').fetchall()}
+
+            apps_dir = os.path.join(current_app.root_path, 'templates', 'apps')
+            for entry in sorted(os.listdir(repo_dir)):
+                app_folder = os.path.join(apps_dir, entry)
+                if os.path.isdir(app_folder) and entry not in deployed:
+                    shutil.rmtree(app_folder, ignore_errors=True)
+
             shutil.rmtree(repo_dir, ignore_errors=True)
     db.execute('DELETE FROM app_sources WHERE id = ?', [source_id])
-    flash("Source removed from list.", "success")
+    flash("Source removed. Non-deployed apps from this source cleaned up.", "success")
     return redirect(url_for('apps.list_apps'))
 
 
