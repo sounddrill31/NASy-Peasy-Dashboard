@@ -37,7 +37,7 @@ CADDY_DOMAIN=$DOMAIN
 EOF
     mkdir -p apps.d/paths apps.d/sites
     cat > Caddyfile <<CADDYEOF
-$DOMAIN {
+{env.CADDY_DOMAIN} {
     reverse_proxy localhost:5000
     import apps.d/paths/*.caddy
 }
