@@ -41,7 +41,7 @@ $DOMAIN {
 }
 
 :80 {
-    redir http://{host}:5000{uri} permanent
+    reverse_proxy host.containers.internal:5000
 }
 CADDYEOF
     cat > docker-compose.override.yml <<'OVERRIDEEOF'
