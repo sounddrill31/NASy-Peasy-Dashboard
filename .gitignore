@@ -7,3 +7,5 @@ flask.log
 _host_data.json
 *.log
 deployments/
+Caddyfile
+docker-compose.override.yml
