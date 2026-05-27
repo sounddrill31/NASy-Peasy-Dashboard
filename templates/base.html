@@ -68,7 +68,7 @@
             {% if messages %}
                 <div class="mb-4 sm:mb-6 space-y-2">
                     {% for category, message in messages %}
-                        <div class="bg-black text-white p-3 sm:p-4 font-bold border-l-8 {% if category == 'error' %}border-red-500{% else %}border-gray-400{% endif %} text-sm sm:text-base">{{ message }}</div>
+                        <div class="bg-black text-white p-3 sm:p-4 font-bold border-l-8 {% if category == 'error' %}border-red-500{% elif category == 'info' %}border-yellow-400{% else %}border-gray-400{% endif %} text-sm sm:text-base">{{ message }}</div>
                     {% endfor %}
                 </div>
             {% endif %}

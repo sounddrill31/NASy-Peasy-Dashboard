@@ -3,6 +3,7 @@ import json
 import subprocess
 import re
 import shutil
+import tempfile
 import threading
 import requests as http_requests
 from flask import Blueprint, render_template, request, current_app, flash, redirect, jsonify, url_for
@@ -34,19 +35,58 @@ def get_local_apps():
     return apps
 
 
-def get_remote_apps(repo_url):
-    apps = []
+def import_apps_from_source(source):
+    """Import apps from a local folder path or git repo URL.
+    Each subfolder must contain app.json + docker-compose.yaml.
+    Returns (count, error_messages).
+    """
+    temp_dir = None
     try:
-        resp = http_requests.get(repo_url, timeout=5)
-        if resp.status_code == 200:
-            data = resp.json()
-            if isinstance(data, list):
-                apps.extend(data)
-            elif isinstance(data, dict) and 'apps' in data:
-                apps.extend(data['apps'])
+        if source.startswith(('http://', 'https://', 'git@', 'git://')):
+            temp_dir = tempfile.mkdtemp(prefix='nasypeasy-import-')
+            r = subprocess.run(['git', 'clone', '--depth', '1', source, temp_dir],
+                               capture_output=True, text=True, timeout=120)
+            if r.returncode != 0:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                return 0, f"Git clone failed: {r.stderr.strip()}"
+            scan_dir = temp_dir
+        elif os.path.isdir(source):
+            scan_dir = source
+        else:
+            return 0, "Invalid source: not a directory or git repo URL"
+
+        apps_dir = os.path.join(current_app.root_path, 'templates', 'apps')
+        os.makedirs(apps_dir, exist_ok=True)
+        imported = 0
+        errs = []
+
+        for entry in sorted(os.listdir(scan_dir)):
+            app_dir = os.path.join(scan_dir, entry)
+            meta_path = os.path.join(app_dir, 'app.json')
+            compose_path = os.path.join(app_dir, 'docker-compose.yaml')
+            if not os.path.isdir(app_dir) or not os.path.isfile(meta_path):
+                continue
+            try:
+                with open(meta_path) as f:
+                    meta = json.load(f)
+                if not meta.get('name') or not meta.get('port'):
+                    raise ValueError("Missing 'name' or 'port' in app.json")
+            except Exception as e:
+                errs.append(f"{entry}: {e}")
+                continue
+            dest = os.path.join(apps_dir, entry)
+            if os.path.exists(dest):
+                shutil.rmtree(dest)
+            shutil.copytree(app_dir, dest)
+            imported += 1
+
+        if temp_dir:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        return imported, '; '.join(errs) if errs else ''
     except Exception as e:
-        print(f"Error fetching remote repo {repo_url}: {e}")
-    return apps
+        if temp_dir:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        return 0, str(e)
 
 
 def get_app_files(app_dir):
@@ -104,12 +144,16 @@ def find_volume_refs(content):
 @apps_bp.route('/apps')
 @login_required
 def list_apps():
-    local_apps = get_local_apps()
     repo_url = request.args.get('repo_url')
-    remote_apps = []
     if repo_url:
-        remote_apps = get_remote_apps(repo_url)
-    all_apps = local_apps + remote_apps
+        imported, errors = import_apps_from_source(repo_url)
+        if imported:
+            flash(f"Imported {imported} app(s) from source", "success")
+        elif errors:
+            flash(f"Import errors: {errors}", "error")
+        else:
+            flash("No apps found. Ensure each app is in a subfolder with app.json.", "info")
+    all_apps = get_local_apps()
     return render_template('apps.html', apps=all_apps, repo_url=repo_url)
 
 

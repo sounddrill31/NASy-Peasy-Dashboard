@@ -8,9 +8,9 @@
 
 <div class="mb-6 sm:mb-8 border-4 border-black p-4 sm:p-6">
     <h3 class="text-sm sm:text-lg font-bold uppercase mb-3 sm:mb-4 border-b-2 border-dashed border-black pb-2">Add External Repository</h3>
-    <form method="GET" class="flex flex-col sm:flex-row gap-3 sm:gap-4">
-        <input type="text" name="repo_url" value="{{ repo_url or '' }}" placeholder="https://example.com/apps.json" class="flex-grow border-2 border-black p-3 focus:outline-none focus:ring-4 focus:ring-black/20 font-mono text-xs sm:text-sm">
-        <button type="submit" class="bg-black text-white font-bold px-6 sm:px-8 py-3 hover:bg-white hover:text-black border-4 border-black transition-colors uppercase tracking-wider text-xs sm:text-sm whitespace-nowrap">
+    <form method="GET" class="flex flex-col sm:flex-row gap-3 sm:gap-4" id="import-form">
+        <input type="text" name="repo_url" value="{{ repo_url or '' }}" placeholder="Git repo URL or local path to app folder" class="flex-grow border-2 border-black p-3 focus:outline-none focus:ring-4 focus:ring-black/20 font-mono text-xs sm:text-sm">
+        <button type="submit" id="import-btn" class="bg-black text-white font-bold px-6 sm:px-8 py-3 hover:bg-white hover:text-black border-4 border-black transition-colors uppercase tracking-wider text-xs sm:text-sm whitespace-nowrap">
             Fetch
         </button>
     </form>
@@ -81,6 +81,15 @@
             document.getElementById('app-grid').appendChild(msg);
         }
     });
+
+    var form = document.getElementById('import-form');
+    var btn = document.getElementById('import-btn');
+    if (form && btn) {
+        form.addEventListener('submit', function() {
+            btn.disabled = true;
+            btn.textContent = 'Cloning...';
+        });
+    }
 })();
 </script>
 {% endblock %}
