@@ -319,7 +319,43 @@ def app_detail(name):
                            main_domain=os.environ.get('CADDY_DOMAIN', '').strip())
 
 
-def _async_deploy(app_dir, deploy_dir, name, meta, domain):
+def _ensure_caddy_routing(name, port, domain, main_domain, root_path):
+    apps_d = os.path.join(root_path, 'apps.d')
+    safe_name = name.lower().replace('_', '-').replace(' ', '-')
+
+    if domain:
+        sites_d = os.path.join(apps_d, 'sites')
+        os.makedirs(sites_d, exist_ok=True)
+        entry = f'\n{domain} {{\n    tls internal\n    reverse_proxy localhost:{port}\n}}\n'
+        app_caddy = os.path.join(sites_d, f'{safe_name}.caddy')
+        if not os.path.isfile(app_caddy) or open(app_caddy).read() != entry:
+            with open(app_caddy, 'w') as f:
+                f.write(entry)
+    elif main_domain:
+        paths_d = os.path.join(apps_d, 'paths')
+        os.makedirs(paths_d, exist_ok=True)
+        entry = f'handle_path /{safe_name}/* {{\n    reverse_proxy localhost:{port}\n}}\n'
+        app_caddy = os.path.join(paths_d, f'{safe_name}.caddy')
+        if not os.path.isfile(app_caddy) or open(app_caddy).read() != entry:
+            with open(app_caddy, 'w') as f:
+                f.write(entry)
+
+    caddyfile = os.path.join(root_path, 'Caddyfile')
+    if os.path.isfile(caddyfile):
+        try:
+            caddy_bin = os.path.join(root_path, '.pixi', 'envs', 'default', 'bin', 'caddy')
+            subprocess.run([caddy_bin, 'reload', '--config', caddyfile],
+                           capture_output=True, text=True, timeout=10)
+        except Exception:
+            try:
+                caddy_bin = os.path.join(root_path, '.pixi', 'envs', 'default', 'bin', 'caddy')
+                subprocess.run([caddy_bin, 'start', '--config', caddyfile],
+                               capture_output=True, text=True, timeout=10)
+            except Exception:
+                pass
+
+
+def _async_deploy(app_dir, deploy_dir, name, meta, domain, root_path):
     caddy_path = os.path.join(app_dir, 'Caddyfile')
     caddy_deploy = os.path.join(deploy_dir, 'Caddyfile')
     if os.path.isfile(caddy_path):
@@ -328,38 +364,11 @@ def _async_deploy(app_dir, deploy_dir, name, meta, domain):
         with open(caddy_deploy, 'w') as f:
             f.write(caddy_content)
 
-    main_domain = os.environ.get('CADDY_DOMAIN', '').strip()
     port = meta.get('port', 0)
-    caddyfile = os.path.join(current_app.root_path, 'Caddyfile')
-    safe_name = name.lower().replace('_', '-').replace(' ', '-')
+    main_domain = os.environ.get('CADDY_DOMAIN', '').strip()
 
-    if port and os.path.isfile(caddyfile):
-        apps_d = os.path.join(current_app.root_path, 'apps.d')
-
-        if domain:
-            sites_d = os.path.join(apps_d, 'sites')
-            os.makedirs(sites_d, exist_ok=True)
-            entry = f'\n{domain} {{\n    tls internal\n    reverse_proxy localhost:{port}\n}}\n'
-            app_caddy = os.path.join(sites_d, f'{safe_name}.caddy')
-            if not os.path.isfile(app_caddy) or open(app_caddy).read() != entry:
-                with open(app_caddy, 'w') as f:
-                    f.write(entry)
-
-        if main_domain and not domain:
-            paths_d = os.path.join(apps_d, 'paths')
-            os.makedirs(paths_d, exist_ok=True)
-            entry = f'handle_path /{safe_name}/* {{\n    reverse_proxy localhost:{port}\n}}\n'
-            app_caddy = os.path.join(paths_d, f'{safe_name}.caddy')
-            if not os.path.isfile(app_caddy) or open(app_caddy).read() != entry:
-                with open(app_caddy, 'w') as f:
-                    f.write(entry)
-
-        try:
-            caddy_bin = os.path.join(current_app.root_path, '.pixi', 'envs', 'default', 'bin', 'caddy')
-            subprocess.run([caddy_bin, 'reload', '--config', caddyfile],
-                           capture_output=True, text=True, timeout=10)
-        except Exception:
-            pass
+    if port:
+        _ensure_caddy_routing(name, port, domain, main_domain, root_path)
 
     db = get_db()
     try:
@@ -430,7 +439,7 @@ def deploy_app(name):
         ON CONFLICT (name) DO UPDATE SET status = 'deploying', port = ?, domain = ?, updated_at = now()
     ''', [meta['name'], name, port, effective_domain or '', port, effective_domain or ''])
 
-    t = threading.Thread(target=_async_deploy, args=(app_dir, deploy_dir, name, meta, domain), daemon=True)
+    t = threading.Thread(target=_async_deploy, args=(app_dir, deploy_dir, name, meta, domain, current_app.root_path), daemon=True)
     t.start()
 
     flash(f"{meta['name']} deploying...", "success")
@@ -526,6 +535,10 @@ def deployed_up(name):
             flash(f"Error starting app: {resp.text}", "error")
         else:
             db = get_db()
+            row = db.execute('SELECT port, domain FROM deployed_apps WHERE folder = ?', [name]).fetchone()
+            if row and row[0]:
+                main_domain = os.environ.get('CADDY_DOMAIN', '').strip()
+                _ensure_caddy_routing(name, row[0], row[1] or '', main_domain, current_app.root_path)
             db.execute('UPDATE deployed_apps SET status = ? WHERE folder = ?', ['running', name])
             flash("App started", "success")
     except Exception as e:
