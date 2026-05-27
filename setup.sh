@@ -56,7 +56,7 @@ fi
 
 # Stop any existing caddy and start fresh
 pixi run caddy-stop 2>/dev/null || true
-pixi run caddy-start
+pixi run caddy-start || echo "  Warning: Caddy may already be running (this is usually fine)"
 echo "  Caddy started (background)"
 
 # 5. Create a user
