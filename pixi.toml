@@ -23,9 +23,9 @@ server = {cmd="podman-compose -f docker-compose.yml up -d", depends-on=["host-ag
 server-clean = {cmd="podman-compose -f docker-compose.yml up -d --build", depends-on=["host-agent", "caddy-start"] }
 start = "python app.py"
 create-user = "python create_user.py"
-host-agent = "sh -c 'pkill -f \"host_agent.py\" 2>/dev/null; sleep 1; python host_agent.py --daemon'"
+host-agent = "python host_agent.py --daemon"
 add-shared-dir = "python add_shared_dir.py {args}"
 caddy = "sh -c 'caddy run --config Caddyfile 2>&1 | tee -a caddy.log'"
-caddy-start = "sh -c 'caddy stop --config Caddyfile 2>/dev/null; caddy start --config Caddyfile >> caddy.log 2>&1'"
+caddy-start = "sh -c 'caddy stop --config Caddyfile 2>/dev/null; caddy start --config Caddyfile >> caddy.log 2>&1 || true'"
 caddy-stop = "caddy stop --config Caddyfile"
 caddy-logs = "tail -f caddy.log"
