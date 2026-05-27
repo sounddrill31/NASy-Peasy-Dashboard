@@ -1,0 +1,6 @@
+{
+  "name": "Uptime Kuma",
+  "description": "A fancy self-hosted monitoring tool for your services",
+  "icon": "fas fa-heartbeat",
+  "port": 3001
+}

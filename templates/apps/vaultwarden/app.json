@@ -1,7 +1,0 @@
-{
-  "name": "Vaultwarden",
-  "description": "Bitwarden-compatible password manager",
-  "icon": "fas fa-key",
-  "port": 8081,
-  "needs_https": true
-}
