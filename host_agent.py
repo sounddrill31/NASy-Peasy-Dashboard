@@ -5,7 +5,7 @@ import socket
 import os
 import sys
 import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import shutil
 import tempfile
 
@@ -346,7 +346,7 @@ class DeployHandler(BaseHTTPRequestHandler):
 
 
 def api_server():
-    server = HTTPServer(('127.0.0.1', 5001), DeployHandler)
+    server = ThreadingHTTPServer(('127.0.0.1', 5001), DeployHandler)
     log(f"[api] HTTP server on http://127.0.0.1:5001")
     server.serve_forever()
 
