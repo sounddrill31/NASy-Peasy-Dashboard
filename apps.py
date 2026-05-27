@@ -6,8 +6,6 @@ import shutil
 import tempfile
 import threading
 import shlex
-import zipfile
-import io
 import requests as http_requests
 from flask import Blueprint, render_template, request, current_app, flash, redirect, jsonify, url_for
 from flask_login import login_required
@@ -47,30 +45,16 @@ def import_apps_from_source(source):
     try:
         if source.startswith(('http://', 'https://', 'git@', 'git://')):
             temp_dir = tempfile.mkdtemp(prefix='nasypeasy-import-')
-            # Normalize URL: git@... -> https://...
-            if source.startswith('git@'):
-                source = source.replace(':', '/').replace('git@', 'https://')
-            source = source.rstrip('/').rstrip('.git')
-            zip_url = f'{source}/archive/refs/heads/main.zip'
             try:
-                resp = http_requests.get(zip_url, timeout=60)
-            except Exception:
-                resp = None
-            if not resp or resp.status_code != 200:
-                zip_url = f'{source}/archive/refs/heads/master.zip'
-                try:
-                    resp = http_requests.get(zip_url, timeout=60)
-                except Exception:
-                    resp = None
-            if not resp or resp.status_code != 200:
+                r = subprocess.run(['git', 'clone', '--depth', '1', source, temp_dir],
+                                   capture_output=True, text=True, timeout=120)
+            except FileNotFoundError:
                 shutil.rmtree(temp_dir, ignore_errors=True)
-                return 0, f"Failed to download repo. Check the URL is a valid GitHub repo."
-            z = zipfile.ZipFile(io.BytesIO(resp.content))
-            z.extractall(temp_dir)
-            contents = os.listdir(temp_dir)
+                return 0, "Git is not accessible from the web server. Run: sudo dnf install git (or apt install git)"
+            if r.returncode != 0:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                return 0, f"Git clone failed: {r.stderr.strip()}"
             scan_dir = temp_dir
-            if len(contents) == 1 and os.path.isdir(os.path.join(temp_dir, contents[0])):
-                scan_dir = os.path.join(temp_dir, contents[0])
         elif os.path.isdir(source):
             scan_dir = source
         else:
