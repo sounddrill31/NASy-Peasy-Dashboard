@@ -51,33 +51,10 @@ else
     echo "  Caddy configured for HTTP (no domain)"
 fi
 
-PROJECT_DIR="$(pwd)"
-CADDY_BIN="$PROJECT_DIR/.pixi/envs/default/bin/caddy"
-mkdir -p ~/.config/systemd/user
-cat > ~/.config/systemd/user/nasypeasy-caddy.service <<UNIT
-[Unit]
-Description=NASy-Peasy Caddy reverse proxy
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=notify
-ExecStart=$CADDY_BIN run --config $PROJECT_DIR/Caddyfile
-ExecReload=$CADDY_BIN reload --config $PROJECT_DIR/Caddyfile
-Restart=on-failure
-RestartSec=5
-WorkingDirectory=$PROJECT_DIR
-
-[Install]
-WantedBy=default.target
-UNIT
-systemctl --user daemon-reload
-if systemctl --user is-enabled nasypeasy-caddy &>/dev/null; then
-    systemctl --user restart nasypeasy-caddy
-else
-    systemctl --user enable --now nasypeasy-caddy
-fi
-echo "  Caddy systemd service started"
+# Stop any existing caddy and start fresh
+pixi run caddy-stop 2>/dev/null || true
+pixi run caddy-start
+echo "  Caddy started (background)"
 
 # 5. Create a user
 echo "[5/6] Creating admin user..."
@@ -113,7 +90,11 @@ echo ""
 echo "Start all services:"
 echo "  pixi run host-agent  # collects podman/tailscale data"
 echo "  pixi run server      # containerized dashboard"
-echo "  pixi run caddy       # reverse proxy (already started as systemd service)"
+echo ""
+echo "Caddy (reverse proxy):"
+echo "  pixi run caddy       # foreground"
+echo "  pixi run caddy-start # background (already started)"
+echo "  pixi run caddy-stop  # stop"
 echo ""
 echo "Or run directly on host:"
 echo "  pixi run start       # dashboard on port 5000"
