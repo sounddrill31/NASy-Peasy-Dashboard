@@ -340,19 +340,10 @@ def _ensure_caddy_routing(name, port, domain, main_domain, root_path):
             with open(app_caddy, 'w') as f:
                 f.write(entry)
 
-    caddyfile = os.path.join(root_path, 'Caddyfile')
-    if os.path.isfile(caddyfile):
-        try:
-            caddy_bin = os.path.join(root_path, '.pixi', 'envs', 'default', 'bin', 'caddy')
-            subprocess.run([caddy_bin, 'reload', '--config', caddyfile],
-                           capture_output=True, text=True, timeout=10)
-        except Exception:
-            try:
-                caddy_bin = os.path.join(root_path, '.pixi', 'envs', 'default', 'bin', 'caddy')
-                subprocess.run([caddy_bin, 'start', '--config', caddyfile],
-                               capture_output=True, text=True, timeout=10)
-            except Exception:
-                pass
+    try:
+        http_requests.post(f'{AGENT_URL}/api/caddy-reload', timeout=10)
+    except Exception:
+        pass
 
 
 def _async_deploy(app_dir, deploy_dir, name, meta, domain, root_path):
@@ -571,14 +562,10 @@ def deployed_delete(name):
                 if os.path.isfile(f):
                     os.remove(f)
 
-            caddyfile = os.path.join(current_app.root_path, 'Caddyfile')
-            if os.path.isfile(caddyfile):
-                try:
-                    caddy_bin = os.path.join(current_app.root_path, '.pixi', 'envs', 'default', 'bin', 'caddy')
-                    subprocess.run([caddy_bin, 'reload', '--config', caddyfile],
-                                   capture_output=True, text=True, timeout=10)
-                except Exception:
-                    pass
+            try:
+                http_requests.post(f'{AGENT_URL}/api/caddy-reload', timeout=10)
+            except Exception:
+                pass
 
             flash("App deleted", "success")
     except Exception as e:

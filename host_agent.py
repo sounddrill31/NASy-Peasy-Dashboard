@@ -282,6 +282,30 @@ class DeployHandler(BaseHTTPRequestHandler):
                 self._send_json({'error': str(e)}, 500)
             return
 
+        if self.path == '/api/caddy-reload':
+            try:
+                root = os.path.dirname(DATA_FILE)
+                caddy_bin = os.path.join(root, '.pixi', 'envs', 'default', 'bin', 'caddy')
+                caddyfile = os.path.join(root, 'Caddyfile')
+                if os.path.isfile(caddyfile):
+                    result = subprocess.run(
+                        [caddy_bin, 'reload', '--config', caddyfile],
+                        capture_output=True, text=True, timeout=10
+                    )
+                    if result.returncode == 0:
+                        self._send_json({'ok': True})
+                    else:
+                        result = subprocess.run(
+                            [caddy_bin, 'start', '--config', caddyfile],
+                            capture_output=True, text=True, timeout=10
+                        )
+                        self._send_json({'ok': result.returncode == 0, 'output': result.stderr or result.stdout})
+                else:
+                    self._send_json({'ok': False, 'error': 'Caddyfile not found'})
+            except Exception as e:
+                self._send_json({'error': str(e)}, 500)
+            return
+
         self._send_json({'error': 'not found'}, 404)
 
     def do_GET(self):
