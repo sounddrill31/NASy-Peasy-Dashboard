@@ -361,11 +361,18 @@ def _async_deploy(app_dir, deploy_dir, name, meta, domain):
         except Exception:
             pass
 
+    db = get_db()
     try:
         payload = {'folder': name}
-        http_requests.post(f'{AGENT_URL}/api/deploy', json=payload, timeout=300)
-    except Exception:
-        pass
+        resp = http_requests.post(f'{AGENT_URL}/api/deploy', json=payload, timeout=300)
+        data = resp.json()
+        if data.get('ok'):
+            db.execute('UPDATE deployed_apps SET status = ? WHERE folder = ?', ['running', name])
+        else:
+            db.execute('UPDATE deployed_apps SET status = ?, domain = ? WHERE folder = ?',
+                       ['error', '', name])
+    except Exception as e:
+        db.execute('UPDATE deployed_apps SET status = ? WHERE folder = ?', ['error', name])
 
 
 @apps_bp.route('/apps/<name>/deploy', methods=['POST'])
