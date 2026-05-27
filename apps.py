@@ -331,7 +331,7 @@ def _async_deploy(app_dir, deploy_dir, name, meta, domain):
                     with open(caddyfile_root, 'a') as f:
                         f.write(entry)
                     subprocess.run(
-                        ['docker', 'exec', 'nasypeasy-caddy', 'caddy', 'reload', '--config', '/etc/caddy/Caddyfile'],
+                        ['docker', 'exec', 'nasypeasy-caddy', 'caddy', 'reload', '--config', '/app/Caddyfile'],
                         capture_output=True, text=True, timeout=10
                     )
         except Exception:

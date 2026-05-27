@@ -1,0 +1,3 @@
+:80 {
+    redir http://{host}:5000{uri} permanent
+}

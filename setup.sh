@@ -39,20 +39,19 @@ EOF
 $DOMAIN {
     reverse_proxy host.containers.internal:5000
 }
+
+:80 {
+    redir http://{host}:5000{uri} permanent
+}
 CADDYEOF
     cat > docker-compose.override.yml <<'OVERRIDEEOF'
 services:
   caddy:
-    image: docker.io/caddy:latest
-    container_name: nasypeasy-caddy
     ports:
-      - "80:80"
       - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:Z
       - caddy-data:/data
       - caddy-config:/config
-    restart: unless-stopped
 
 volumes:
   caddy-data:
@@ -60,7 +59,6 @@ volumes:
 OVERRIDEEOF
     echo "  Caddy configured for https://$DOMAIN"
     echo "  Caddyfile and docker-compose.override.yml generated"
-    echo "  Start Caddy: docker compose up -d caddy"
 fi
 
 # 5. Create a user
