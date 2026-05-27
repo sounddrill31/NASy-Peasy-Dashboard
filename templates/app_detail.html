@@ -88,7 +88,10 @@
         <div class="p-3 sm:p-4">
             <input type="text" name="domain" value="{{ domain }}" placeholder="e.g. vault.example.com"
                    class="w-full border-2 border-black p-3 font-bold text-xs sm:text-sm focus:outline-none focus:ring-4 focus:ring-black/20 uppercase placeholder:uppercase placeholder:text-gray-400">
-            <p class="mt-2 text-[10px] text-gray-500">Caddy provisions a TLS certificate for this domain via Let's Encrypt.</p>
+            {% if main_domain and not domain %}
+            <p class="mt-2 text-[10px] text-gray-500">https://{{ main_domain }}/{{ name | lower | replace('_', '-') | replace(' ', '-') }}/ (auto, leave blank)</p>
+            {% endif %}
+            <p class="mt-1 text-[10px] text-gray-500">Caddy provisions a TLS certificate via Let's Encrypt or internal CA.</p>
         </div>
     </div>
     {% endif %}

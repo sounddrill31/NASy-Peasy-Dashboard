@@ -35,10 +35,14 @@ if [ -n "$DOMAIN" ]; then
     cat >> .env <<EOF
 CADDY_DOMAIN=$DOMAIN
 EOF
+    mkdir -p apps.d/paths apps.d/sites
     cat > Caddyfile <<CADDYEOF
 $DOMAIN {
     reverse_proxy localhost:5000
+    import apps.d/paths/*.caddy
 }
+
+import apps.d/sites/*.caddy
 
 :80 {
     reverse_proxy localhost:5000

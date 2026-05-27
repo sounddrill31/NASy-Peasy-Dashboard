@@ -307,7 +307,8 @@ def app_detail(name):
                            shared_dirs=shared_dirs,
                            volumes=volumes,
                            volume_map_json=json.dumps(volume_map),
-                           domain=domain)
+                           domain=domain,
+                           main_domain=os.environ.get('CADDY_DOMAIN', '').strip())
 
 
 def _async_deploy(app_dir, deploy_dir, name, meta, domain):
@@ -320,36 +321,37 @@ def _async_deploy(app_dir, deploy_dir, name, meta, domain):
             f.write(caddy_content)
 
     main_domain = os.environ.get('CADDY_DOMAIN', '').strip()
-    caddyfile = os.path.join(current_app.root_path, 'Caddyfile')
     port = meta.get('port', 0)
+    caddyfile = os.path.join(current_app.root_path, 'Caddyfile')
+    safe_name = name.lower().replace('_', '-').replace(' ', '-')
 
     if port and os.path.isfile(caddyfile):
-        domains = []
+        apps_d = os.path.join(current_app.root_path, 'apps.d')
 
-        if main_domain:
-            subdomain = name.lower().replace('_', '-').replace(' ', '-')
-            domains.append(f'{subdomain}.{main_domain}')
+        if domain:
+            sites_d = os.path.join(apps_d, 'sites')
+            os.makedirs(sites_d, exist_ok=True)
+            entry = f'\n{domain} {{\n    tls internal\n    reverse_proxy localhost:{port}\n}}\n'
+            app_caddy = os.path.join(sites_d, f'{safe_name}.caddy')
+            if not os.path.isfile(app_caddy) or open(app_caddy).read() != entry:
+                with open(app_caddy, 'w') as f:
+                    f.write(entry)
 
-        if domain and domain not in domains:
-            domains.append(domain)
+        if main_domain and not domain:
+            paths_d = os.path.join(apps_d, 'paths')
+            os.makedirs(paths_d, exist_ok=True)
+            entry = f'handle_path /{safe_name}/* {{\n    reverse_proxy localhost:{port}\n}}\n'
+            app_caddy = os.path.join(paths_d, f'{safe_name}.caddy')
+            if not os.path.isfile(app_caddy) or open(app_caddy).read() != entry:
+                with open(app_caddy, 'w') as f:
+                    f.write(entry)
 
-        if domains:
-            with open(caddyfile, 'r') as f:
-                content = f.read()
-            new_entries = ''
-            for d in domains:
-                if d not in content:
-                    new_entries += f'\n{d} {{\n    tls internal\n    reverse_proxy localhost:{port}\n}}\n'
-
-            if new_entries:
-                try:
-                    with open(caddyfile, 'a') as f:
-                        f.write(new_entries)
-                    caddy_bin = os.path.join(current_app.root_path, '.pixi', 'envs', 'default', 'bin', 'caddy')
-                    subprocess.run([caddy_bin, 'reload', '--config', caddyfile],
-                                   capture_output=True, text=True, timeout=10)
-                except Exception:
-                    pass
+        try:
+            caddy_bin = os.path.join(current_app.root_path, '.pixi', 'envs', 'default', 'bin', 'caddy')
+            subprocess.run([caddy_bin, 'reload', '--config', caddyfile],
+                           capture_output=True, text=True, timeout=10)
+        except Exception:
+            pass
 
     try:
         payload = {'folder': name}
@@ -382,7 +384,7 @@ def deploy_app(name):
     effective_domain = domain
     if not effective_domain and main_domain and port:
         subdomain = name.lower().replace('_', '-').replace(' ', '-')
-        effective_domain = f'{subdomain}.{main_domain}'
+        effective_domain = f'{main_domain}/{subdomain}'
 
     deploy_dir = os.path.join(current_app.root_path, 'deployments', name)
     os.makedirs(deploy_dir, exist_ok=True)
@@ -534,6 +536,22 @@ def deployed_delete(name):
             deploy_dir = os.path.join(current_app.root_path, 'deployments', name)
             if os.path.isdir(deploy_dir):
                 shutil.rmtree(deploy_dir, ignore_errors=True)
+
+            safe_name = name.lower().replace('_', '-').replace(' ', '-')
+            for sub in ('paths', 'sites'):
+                f = os.path.join(current_app.root_path, 'apps.d', sub, f'{safe_name}.caddy')
+                if os.path.isfile(f):
+                    os.remove(f)
+
+            caddyfile = os.path.join(current_app.root_path, 'Caddyfile')
+            if os.path.isfile(caddyfile):
+                try:
+                    caddy_bin = os.path.join(current_app.root_path, '.pixi', 'envs', 'default', 'bin', 'caddy')
+                    subprocess.run([caddy_bin, 'reload', '--config', caddyfile],
+                                   capture_output=True, text=True, timeout=10)
+                except Exception:
+                    pass
+
             flash("App deleted", "success")
     except Exception as e:
         flash(f"Error: {e}", "error")

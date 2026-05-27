@@ -26,7 +26,7 @@
         </div>
         <div class="mt-auto pt-3 sm:pt-4 border-t-2 border-black flex flex-wrap gap-1.5 sm:gap-2">
             {% if app.port and app.status == 'running' %}
-            <form method="GET" action="{% if app.domain %}https://{{ app.domain }}{% else %}http://{{ request.host.split(':')[0] }}:{{ app.port }}{% endif %}" target="_blank" class="flex-1 min-w-[70px]">
+            <form method="GET" action="{% if app.domain %}https://{{ app.domain }}/{% else %}http://{{ request.host.split(':')[0] }}:{{ app.port }}{% endif %}" target="_blank" class="flex-1 min-w-[70px]">
                 <button type="submit"
                         class="w-full bg-black text-white font-bold p-2 sm:p-3 border-2 border-black hover:bg-white hover:text-black transition-colors uppercase text-[10px] sm:text-sm">
                     Open &nearr;
