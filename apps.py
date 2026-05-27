@@ -6,6 +6,8 @@ import shutil
 import tempfile
 import threading
 import shlex
+import zipfile
+import io
 import requests as http_requests
 from flask import Blueprint, render_template, request, current_app, flash, redirect, jsonify, url_for
 from flask_login import login_required
@@ -45,15 +47,30 @@ def import_apps_from_source(source):
     try:
         if source.startswith(('http://', 'https://', 'git@', 'git://')):
             temp_dir = tempfile.mkdtemp(prefix='nasypeasy-import-')
-            cmd = f'git clone --depth 1 {shlex.quote(source)} {shlex.quote(temp_dir)}'
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, shell=True)
-            if r.returncode != 0:
+            # Normalize URL: git@... -> https://...
+            if source.startswith('git@'):
+                source = source.replace(':', '/').replace('git@', 'https://')
+            source = source.rstrip('/').rstrip('.git')
+            zip_url = f'{source}/archive/refs/heads/main.zip'
+            try:
+                resp = http_requests.get(zip_url, timeout=60)
+            except Exception:
+                resp = None
+            if not resp or resp.status_code != 200:
+                zip_url = f'{source}/archive/refs/heads/master.zip'
+                try:
+                    resp = http_requests.get(zip_url, timeout=60)
+                except Exception:
+                    resp = None
+            if not resp or resp.status_code != 200:
                 shutil.rmtree(temp_dir, ignore_errors=True)
-                err = r.stderr.strip()
-                if 'not found' in err.lower() or 'not a valid command' in err.lower():
-                    return 0, "Git is not accessible from the web server. Run: sudo dnf install git (or apt install git)"
-                return 0, f"Git clone failed: {err}"
+                return 0, f"Failed to download repo. Check the URL is a valid GitHub repo."
+            z = zipfile.ZipFile(io.BytesIO(resp.content))
+            z.extractall(temp_dir)
+            contents = os.listdir(temp_dir)
             scan_dir = temp_dir
+            if len(contents) == 1 and os.path.isdir(os.path.join(temp_dir, contents[0])):
+                scan_dir = os.path.join(temp_dir, contents[0])
         elif os.path.isdir(source):
             scan_dir = source
         else:
@@ -288,6 +305,24 @@ def _async_deploy(app_dir, deploy_dir, name, meta, domain):
             caddy_content = f.read()
         with open(caddy_deploy, 'w') as f:
             f.write(caddy_content)
+
+    if domain:
+        try:
+            caddyfile_root = os.path.join(current_app.root_path, 'Caddyfile')
+            if os.path.isfile(caddyfile_root):
+                port = meta.get('port', 8080)
+                entry = f'\n{domain} {{\n    reverse_proxy host.containers.internal:{port}\n}}\n'
+                with open(caddyfile_root, 'r') as f:
+                    content = f.read()
+                if domain not in content:
+                    with open(caddyfile_root, 'a') as f:
+                        f.write(entry)
+                    subprocess.run(
+                        ['docker', 'exec', 'nasypeasy-caddy', 'caddy', 'reload', '--config', '/etc/caddy/Caddyfile'],
+                        capture_output=True, text=True, timeout=10
+                    )
+        except Exception:
+            pass
 
     try:
         payload = {'folder': name}
