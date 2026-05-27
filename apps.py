@@ -3,7 +3,6 @@ import json
 import subprocess
 import re
 import shutil
-import tempfile
 import threading
 import shlex
 import requests as http_requests
@@ -36,25 +35,35 @@ def get_local_apps():
     return apps
 
 
+def _repo_dir(source):
+    name = source.rstrip('/').rstrip('.git')
+    name = name.replace('https://', '').replace('http://', '').replace('git@', '')
+    name = name.replace(':', '_').replace('/', '_').replace('.', '_')
+    return os.path.join(current_app.root_path, 'repos', name)
+
+
 def import_apps_from_source(source):
     """Import apps from a local folder path or git repo URL.
     Each subfolder must contain app.json + docker-compose.yaml.
     Returns (count, error_messages).
     """
-    temp_dir = None
     try:
         if source.startswith(('http://', 'https://', 'git@', 'git://')):
-            temp_dir = tempfile.mkdtemp(prefix='nasypeasy-import-')
+            repo_dir = _repo_dir(source)
+            repo_exists = os.path.isdir(repo_dir)
+            os.makedirs(os.path.dirname(repo_dir), exist_ok=True)
             try:
-                r = subprocess.run(['git', 'clone', '--depth', '1', source, temp_dir],
-                                   capture_output=True, text=True, timeout=120)
+                if repo_exists:
+                    r = subprocess.run(['git', '-C', repo_dir, 'pull', '--ff-only'],
+                                       capture_output=True, text=True, timeout=60)
+                else:
+                    r = subprocess.run(['git', 'clone', '--depth', '1', source, repo_dir],
+                                       capture_output=True, text=True, timeout=120)
             except FileNotFoundError:
-                shutil.rmtree(temp_dir, ignore_errors=True)
                 return 0, "Git is not accessible from the web server. Run: sudo dnf install git (or apt install git)"
             if r.returncode != 0:
-                shutil.rmtree(temp_dir, ignore_errors=True)
-                return 0, f"Git clone failed: {r.stderr.strip()}"
-            scan_dir = temp_dir
+                return 0, f"Git {'pull' if repo_exists else 'clone'} failed: {r.stderr.strip()}"
+            scan_dir = repo_dir
         elif os.path.isdir(source):
             scan_dir = source
         else:
@@ -85,12 +94,8 @@ def import_apps_from_source(source):
             shutil.copytree(app_dir, dest)
             imported += 1
 
-        if temp_dir:
-            shutil.rmtree(temp_dir, ignore_errors=True)
         return imported, '; '.join(errs) if errs else ''
     except Exception as e:
-        if temp_dir:
-            shutil.rmtree(temp_dir, ignore_errors=True)
         return 0, str(e)
 
 
@@ -196,6 +201,11 @@ def list_apps():
 @login_required
 def source_remove(source_id):
     db = get_db()
+    row = db.execute('SELECT url FROM app_sources WHERE id = ?', [source_id]).fetchone()
+    if row:
+        repo_dir = _repo_dir(row[0])
+        if os.path.isdir(repo_dir):
+            shutil.rmtree(repo_dir, ignore_errors=True)
     db.execute('DELETE FROM app_sources WHERE id = ?', [source_id])
     flash("Source removed from list.", "success")
     return redirect(url_for('apps.list_apps'))
@@ -219,6 +229,25 @@ def source_move(source_id, direction):
     if neighbor:
         db.execute('UPDATE app_sources SET priority = ? WHERE id = ?', [cur_pri, neighbor[0]])
         db.execute('UPDATE app_sources SET priority = ? WHERE id = ?', [cur_pri + step, cur_id])
+    return redirect(url_for('apps.list_apps'))
+
+
+@apps_bp.route('/sources/refresh-all', methods=['POST'])
+@login_required
+def refresh_all():
+    sources = get_sources()
+    results = []
+    for src in sources:
+        imported, errors = import_apps_from_source(src['url'])
+        if imported:
+            save_source(src['url'], 'success', imported)
+            results.append(f"{src['url']}: {imported} app(s)")
+        elif errors:
+            save_source(src['url'], 'error', 0, errors)
+            results.append(f"{src['url']}: ERROR — {errors}")
+        else:
+            results.append(f"{src['url']}: no new apps")
+    flash("Refresh complete. " + " | ".join(results), "success" if not any('ERROR' in r for r in results) else "error")
     return redirect(url_for('apps.list_apps'))
 
 

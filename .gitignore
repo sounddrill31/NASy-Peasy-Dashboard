@@ -9,3 +9,4 @@ _host_data.json
 deployments/
 Caddyfile
 docker-compose.override.yml
+repos/
