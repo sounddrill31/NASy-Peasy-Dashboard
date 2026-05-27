@@ -16,6 +16,49 @@
     </form>
 </div>
 
+<div class="mb-6 sm:mb-8 border-4 border-black p-4 sm:p-6" id="sources-section">
+    <h3 class="text-sm sm:text-lg font-bold uppercase mb-3 sm:mb-4 border-b-2 border-dashed border-black pb-2">Sources</h3>
+    <div class="space-y-2">
+        <div class="flex items-center justify-between border-2 border-black p-2 sm:p-3 bg-gray-50">
+            <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+                <span class="w-2 h-2 bg-black shrink-0"></span>
+                <span class="font-bold text-xs sm:text-sm uppercase">Local</span>
+                <span class="text-gray-400 text-[10px] hidden sm:inline">Bundled apps</span>
+            </div>
+            <div class="text-[10px] text-gray-400 shrink-0">{{ apps|length }} app{% if apps|length != 1 %}s{% endif %}</div>
+        </div>
+        {% for source in sources %}
+        <div class="flex items-center justify-between border-2 border-black p-2 sm:p-3" data-source-id="{{ source.id }}">
+            <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+                {% if source.last_status == 'success' %}
+                <span class="w-2 h-2 bg-green-600 rounded-full shrink-0"></span>
+                {% elif source.last_status == 'error' %}
+                <span class="w-2 h-2 bg-red-600 rounded-full shrink-0"></span>
+                {% else %}
+                <span class="w-2 h-2 bg-gray-400 rounded-full shrink-0"></span>
+                {% endif %}
+                <a href="{{ url_for('apps.list_apps', repo_url=source.url) }}" class="font-mono text-[10px] sm:text-xs truncate max-w-[180px] sm:max-w-[300px] hover:underline hover:text-gray-600" title="Re-import">{{ source.url }}</a>
+                <span class="text-[10px] text-gray-400 hidden sm:inline">{{ source.last_count }} app{% if source.last_count != 1 %}s{% endif %}</span>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+                <form method="POST" action="{{ url_for('apps.source_move', source_id=source.id, direction='up') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="border border-black px-1.5 py-0.5 text-xs hover:bg-black hover:text-white transition-colors">&uarr;</button>
+                </form>
+                <form method="POST" action="{{ url_for('apps.source_move', source_id=source.id, direction='down') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="border border-black px-1.5 py-0.5 text-xs hover:bg-black hover:text-white transition-colors">&darr;</button>
+                </form>
+                <form method="POST" action="{{ url_for('apps.source_remove', source_id=source.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="border border-black px-1.5 py-0.5 text-xs hover:bg-black hover:text-white transition-colors">&times;</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
 <div class="mb-6 sm:mb-8 border-4 border-black p-3 sm:p-4">
     <input type="text" id="app-search" placeholder="Search apps..."
            class="w-full border-2 border-black p-3 font-bold text-xs sm:text-sm focus:outline-none focus:ring-4 focus:ring-black/20 uppercase placeholder:uppercase placeholder:text-gray-400">

@@ -64,6 +64,20 @@ def init_db():
     except duckdb.CatalogException:
         pass
 
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS app_sources (
+            id INTEGER PRIMARY KEY,
+            url VARCHAR UNIQUE NOT NULL,
+            priority INTEGER DEFAULT 0,
+            last_status VARCHAR DEFAULT 'added',
+            last_error VARCHAR,
+            last_count INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.execute('CREATE SEQUENCE IF NOT EXISTS app_source_id_seq START 1')
+
 if __name__ == '__main__':
     init_db()
     print("Database initialized.")

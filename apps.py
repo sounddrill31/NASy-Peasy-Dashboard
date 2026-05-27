@@ -5,6 +5,7 @@ import re
 import shutil
 import tempfile
 import threading
+import shlex
 import requests as http_requests
 from flask import Blueprint, render_template, request, current_app, flash, redirect, jsonify, url_for
 from flask_login import login_required
@@ -43,22 +44,15 @@ def import_apps_from_source(source):
     temp_dir = None
     try:
         if source.startswith(('http://', 'https://', 'git@', 'git://')):
-            git_path = shutil.which('git')
-            if not git_path:
-                for p in ('/usr/bin/git', '/usr/local/bin/git', '/bin/git'):
-                    if os.path.isfile(p):
-                        git_path = p
-                        break
-            if not git_path:
-                return 0, "Git is not installed in the server PATH. Install it with: sudo dnf install git (or apt install git)"
             temp_dir = tempfile.mkdtemp(prefix='nasypeasy-import-')
-            env = os.environ.copy()
-            env['PATH'] = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
-            r = subprocess.run([git_path, 'clone', '--depth', '1', source, temp_dir],
-                               capture_output=True, text=True, timeout=120, env=env)
+            cmd = f'git clone --depth 1 {shlex.quote(source)} {shlex.quote(temp_dir)}'
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, shell=True)
             if r.returncode != 0:
                 shutil.rmtree(temp_dir, ignore_errors=True)
-                return 0, f"Git clone failed: {r.stderr.strip()}"
+                err = r.stderr.strip()
+                if 'not found' in err.lower() or 'not a valid command' in err.lower():
+                    return 0, "Git is not accessible from the web server. Run: sudo dnf install git (or apt install git)"
+                return 0, f"Git clone failed: {err}"
             scan_dir = temp_dir
         elif os.path.isdir(source):
             scan_dir = source
@@ -149,6 +143,33 @@ def find_volume_refs(content):
     return sorted(refs)
 
 
+# ─── Sources ──────────────────────────────────────────────
+
+def get_sources():
+    db = get_db()
+    rows = db.execute('SELECT id, url, priority, last_status, last_error, last_count, created_at, updated_at FROM app_sources ORDER BY priority ASC, id ASC').fetchall()
+    return [{
+        'id': r[0], 'url': r[1], 'priority': r[2],
+        'last_status': r[3], 'last_error': r[4], 'last_count': r[5],
+        'created_at': str(r[6]) if r[6] else '', 'updated_at': str(r[7]) if r[7] else ''
+    } for r in rows]
+
+
+def save_source(url, status='added', count=0, error=''):
+    db = get_db()
+    existing = db.execute('SELECT id, priority FROM app_sources WHERE url = ?', [url]).fetchone()
+    if existing:
+        db.execute('''
+            UPDATE app_sources SET last_status = ?, last_error = ?, last_count = ?, updated_at = CURRENT_TIMESTAMP WHERE url = ?
+        ''', [status, error, count, url])
+    else:
+        max_pri = db.execute('SELECT COALESCE(MAX(priority), 0) FROM app_sources').fetchone()[0]
+        db.execute('''
+            INSERT INTO app_sources (id, url, priority, last_status, last_error, last_count)
+            VALUES (nextval('app_source_id_seq'), ?, ?, ?, ?, ?)
+        ''', [url, max_pri + 1, status, error, count])
+
+
 # ─── App Store ─────────────────────────────────────────────
 
 @apps_bp.route('/apps')
@@ -158,13 +179,46 @@ def list_apps():
     if repo_url:
         imported, errors = import_apps_from_source(repo_url)
         if imported:
+            save_source(repo_url, 'success', imported)
             flash(f"Imported {imported} app(s) from source", "success")
         elif errors:
+            save_source(repo_url, 'error', 0, errors)
             flash(f"Import errors: {errors}", "error")
         else:
             flash("No apps found. Ensure each app is in a subfolder with app.json.", "info")
     all_apps = get_local_apps()
-    return render_template('apps.html', apps=all_apps, repo_url=repo_url)
+    sources = get_sources()
+    return render_template('apps.html', apps=all_apps, sources=sources, repo_url=repo_url)
+
+
+@apps_bp.route('/sources/<int:source_id>/remove', methods=['POST'])
+@login_required
+def source_remove(source_id):
+    db = get_db()
+    db.execute('DELETE FROM app_sources WHERE id = ?', [source_id])
+    flash("Source removed from list.", "success")
+    return redirect(url_for('apps.list_apps'))
+
+
+@apps_bp.route('/sources/<int:source_id>/move/<direction>', methods=['POST'])
+@login_required
+def source_move(source_id, direction):
+    if direction not in ('up', 'down'):
+        return redirect(url_for('apps.list_apps'))
+    db = get_db()
+    cur = db.execute('SELECT id, priority FROM app_sources WHERE id = ?', [source_id]).fetchone()
+    if not cur:
+        flash("Source not found.", "error")
+        return redirect(url_for('apps.list_apps'))
+    cur_id, cur_pri = cur
+    step = -1 if direction == 'up' else 1
+    neighbor = db.execute(
+        'SELECT id, priority FROM app_sources WHERE priority = ?', [cur_pri + step]
+    ).fetchone()
+    if neighbor:
+        db.execute('UPDATE app_sources SET priority = ? WHERE id = ?', [cur_pri, neighbor[0]])
+        db.execute('UPDATE app_sources SET priority = ? WHERE id = ?', [cur_pri + step, cur_id])
+    return redirect(url_for('apps.list_apps'))
 
 
 @apps_bp.route('/apps/<name>')
