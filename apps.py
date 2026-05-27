@@ -319,24 +319,6 @@ def _async_deploy(app_dir, deploy_dir, name, meta, domain):
         with open(caddy_deploy, 'w') as f:
             f.write(caddy_content)
 
-    if domain:
-        try:
-            caddyfile_root = os.path.join(current_app.root_path, 'Caddyfile')
-            if os.path.isfile(caddyfile_root):
-                port = meta.get('port', 8080)
-                entry = f'\n{domain} {{\n    reverse_proxy host.containers.internal:{port}\n}}\n'
-                with open(caddyfile_root, 'r') as f:
-                    content = f.read()
-                if domain not in content:
-                    with open(caddyfile_root, 'a') as f:
-                        f.write(entry)
-                    subprocess.run(
-                        ['docker', 'exec', 'nasypeasy-caddy', 'caddy', 'reload', '--config', '/app/Caddyfile'],
-                        capture_output=True, text=True, timeout=10
-                    )
-        except Exception:
-            pass
-
     try:
         payload = {'folder': name}
         http_requests.post(f'{AGENT_URL}/api/deploy', json=payload, timeout=300)

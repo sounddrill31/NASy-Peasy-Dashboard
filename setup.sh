@@ -37,6 +37,7 @@ CADDY_DOMAIN=$DOMAIN
 EOF
     cat > Caddyfile <<CADDYEOF
 $DOMAIN {
+    tls internal
     reverse_proxy host.containers.internal:5000
 }
 
