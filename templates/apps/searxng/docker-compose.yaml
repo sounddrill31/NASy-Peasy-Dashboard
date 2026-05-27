@@ -1,0 +1,16 @@
+services:
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    container_name: nasypeasy-searxng
+    ports:
+      - "8888:8080"
+    volumes:
+      - searxng-data:/etc/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8888/
+    cap_add:
+      - CHOWN
+    restart: unless-stopped
+
+volumes:
+  searxng-data:

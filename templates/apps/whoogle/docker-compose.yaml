@@ -1,0 +1,7 @@
+services:
+  whoogle:
+    image: docker.io/benbusby/whoogle-search:latest
+    container_name: nasypeasy-whoogle
+    ports:
+      - "5002:5000"
+    restart: unless-stopped

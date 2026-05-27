@@ -1,0 +1,6 @@
+{
+  "name": "SearXNG",
+  "description": "A privacy-friendly metasearch engine",
+  "icon": "fas fa-search",
+  "port": 8888
+}

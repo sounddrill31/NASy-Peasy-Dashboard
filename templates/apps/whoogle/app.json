@@ -1,0 +1,6 @@
+{
+  "name": "Whoogle",
+  "description": "A self-hosted, privacy-focused Google search proxy",
+  "icon": "fas fa-shield-alt",
+  "port": 5002
+}
