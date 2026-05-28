@@ -45,7 +45,7 @@ def login():
 
         if user_record and check_password_hash(user_record[2], password):
             user = User(id=user_record[0], username=user_record[1])
-            login_user(user)
+            login_user(user, remember=True)
             return redirect(url_for('dashboard'))
         else:
             flash('Invalid username or password')
