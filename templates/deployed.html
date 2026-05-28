@@ -28,7 +28,7 @@
             {% if app.port and app.status == 'running' %}
             <form method="GET" action="{% if app.domain %}https://{{ app.domain }}/{% elif main_domain %}https://{{ request.host.split(':')[0] }}:{{ app.port }}{% else %}http://{{ request.host.split(':')[0] }}:{{ app.port }}{% endif %}" target="_blank" class="flex-1 min-w-[70px]">
                 <button type="submit"
-                        class="w-full bg-white text-black font-bold p-2 sm:p-3 border-2 border-black hover:bg-black hover:text-white transition-colors uppercase text-[10px] sm:text-sm text-center whitespace-nowrap">
+                        class="w-full bg-black text-white font-bold p-2 sm:p-3 border-2 border-black hover:bg-white hover:text-black transition-colors uppercase text-[10px] sm:text-sm text-center whitespace-nowrap">
                     Open &nearr;
                 </button>
             </form>
