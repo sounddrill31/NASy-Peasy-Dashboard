@@ -1,6 +1,0 @@
-{
-  "name": "Stirling PDF",
-  "description": "Web-based PDF manipulation (merge, split, convert, OCR)",
-  "icon": "fas fa-file-pdf",
-  "port": 8085
-}

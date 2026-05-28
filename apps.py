@@ -194,7 +194,8 @@ def list_apps():
             flash("No apps found. Ensure each app is in a subfolder with app.json.", "info")
     all_apps = get_local_apps()
     sources = get_sources()
-    return render_template('apps.html', apps=all_apps, sources=sources, repo_url=repo_url)
+    main_domain = os.environ.get('DOMAIN', '').strip()
+    return render_template('apps.html', apps=all_apps, sources=sources, repo_url=repo_url, main_domain=main_domain)
 
 
 @apps_bp.route('/sources/<int:source_id>/remove', methods=['POST'])

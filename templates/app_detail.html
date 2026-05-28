@@ -83,7 +83,7 @@
     {% if meta.needs_https %}
     <div class="border-4 border-black mb-4 sm:mb-6">
         <div class="bg-black text-white px-3 sm:px-4 py-2 font-bold uppercase text-[10px] sm:text-sm">
-            Domain &amp; TLS (nginx)
+            Domain &amp; TLS (Caddy)
         </div>
         <div class="p-3 sm:p-4">
             <input type="text" name="domain" value="{{ domain }}" placeholder="e.g. vault.example.com"
@@ -91,7 +91,7 @@
             {% if main_domain and not domain %}
             <p class="mt-2 text-[10px] text-gray-500">https://{{ main_domain }}:PORT (auto, leave blank)</p>
             {% endif %}
-            <p class="mt-1 text-[10px] text-gray-500">SSL via Let's Encrypt (certbot).</p>
+            <p class="mt-1 text-[10px] text-gray-500">SSL via Let's Encrypt (Caddy auto-provisions).</p>
         </div>
     </div>
     {% endif %}

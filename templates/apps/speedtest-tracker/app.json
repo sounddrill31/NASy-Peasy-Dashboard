@@ -1,6 +1,0 @@
-{
-  "name": "Speedtest Tracker",
-  "description": "Internet speed test results tracker with history graphs",
-  "icon": "fas fa-tachometer-alt",
-  "port": 8765
-}

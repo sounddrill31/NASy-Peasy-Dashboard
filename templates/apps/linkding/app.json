@@ -1,6 +1,0 @@
-{
-  "name": "Linkding",
-  "description": "Lightweight self-hosted bookmark manager",
-  "icon": "fas fa-bookmark",
-  "port": 9091
-}
