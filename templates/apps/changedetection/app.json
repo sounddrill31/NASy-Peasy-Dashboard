@@ -1,0 +1,6 @@
+{
+  "name": "Changedetection.io",
+  "description": "Website change detection and notification",
+  "icon": "fas fa-bell",
+  "port": 5050
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Miniflux",
+  "description": "Minimalist and opinionated RSS reader",
+  "icon": "fas fa-rss",
+  "port": 8084
+}

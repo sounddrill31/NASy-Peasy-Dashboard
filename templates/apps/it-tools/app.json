@@ -1,0 +1,6 @@
+{
+  "name": "IT Tools",
+  "description": "Handy developer tools (UUID, base64, hashing, etc.)",
+  "icon": "fas fa-wrench",
+  "port": 8083
+}

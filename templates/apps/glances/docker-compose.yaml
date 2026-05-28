@@ -1,0 +1,9 @@
+services:
+  glances:
+    image: docker.io/nicolargo/glances:latest
+    container_name: nasypeasy-glances
+    ports:
+      - "61208:61208"
+    environment:
+      - GLANCES_OPT=-w
+    restart: unless-stopped

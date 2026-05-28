@@ -1,0 +1,29 @@
+services:
+  miniflux:
+    image: docker.io/miniflux/miniflux:latest
+    container_name: nasypeasy-miniflux
+    ports:
+      - "8084:8080"
+    environment:
+      - DATABASE_URL=postgres://miniflux:miniflux@miniflux-db/miniflux?sslmode=disable
+      - RUN_MIGRATIONS=1
+      - CREATE_ADMIN=1
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=admin123
+    depends_on:
+      - miniflux-db
+    restart: unless-stopped
+
+  miniflux-db:
+    image: docker.io/postgres:16-alpine
+    container_name: nasypeasy-miniflux-db
+    environment:
+      - POSTGRES_USER=miniflux
+      - POSTGRES_PASSWORD=miniflux
+      - POSTGRES_DB=miniflux
+    volumes:
+      - miniflux-db-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  miniflux-db-data:

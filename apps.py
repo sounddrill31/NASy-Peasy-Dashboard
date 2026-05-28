@@ -544,7 +544,16 @@ def deployed_down(name):
 @apps_bp.route('/deployed/<name>/up', methods=['POST'])
 @login_required
 def deployed_up(name):
+    main_domain = os.environ.get('DOMAIN', '').strip()
     try:
+        compose_path = os.path.join(current_app.root_path, 'deployments', name, 'docker-compose.yaml')
+        if os.path.isfile(compose_path):
+            with open(compose_path) as f:
+                content = f.read()
+            rewritten = _rewrite_compose_ports(content, main_domain)
+            if rewritten != content:
+                with open(compose_path, 'w') as f:
+                    f.write(rewritten)
         resp = http_requests.post(f'{AGENT_URL}/api/deployed/{name}/up', timeout=30)
         if resp.status_code != 200:
             flash(f"Error starting app: {resp.text}", "error")
@@ -552,7 +561,6 @@ def deployed_up(name):
             db = get_db()
             row = db.execute('SELECT port, domain FROM deployed_apps WHERE folder = ?', [name]).fetchone()
             if row and row[0]:
-                main_domain = os.environ.get('DOMAIN', '').strip()
                 _ensure_caddy_routing(name, row[0], row[1] or '', main_domain, current_app.root_path)
             db.execute('UPDATE deployed_apps SET status = ? WHERE folder = ?', ['running', name])
             flash("App started", "success")

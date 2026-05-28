@@ -1,0 +1,6 @@
+{
+  "name": "Glances",
+  "description": "Real-time system monitoring dashboard",
+  "icon": "fas fa-desktop",
+  "port": 61208
+}

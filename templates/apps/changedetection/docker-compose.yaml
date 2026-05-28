@@ -1,0 +1,12 @@
+services:
+  changedetection:
+    image: docker.io/dgtlmoon/changedetection.io:latest
+    container_name: nasypeasy-changedetection
+    ports:
+      - "5050:5000"
+    volumes:
+      - changedetection-data:/datastore
+    restart: unless-stopped
+
+volumes:
+  changedetection-data:

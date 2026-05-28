@@ -1,0 +1,7 @@
+services:
+  it-tools:
+    image: docker.io/corentinth/it-tools:latest
+    container_name: nasypeasy-it-tools
+    ports:
+      - "8083:80"
+    restart: unless-stopped
