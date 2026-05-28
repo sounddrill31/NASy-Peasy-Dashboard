@@ -320,6 +320,13 @@ def app_detail(name):
 
 
 INTERNAL_OFFSET = 10000
+MAX_PORT = 65535
+
+def _get_internal_port(port):
+    internal = int(port) + INTERNAL_OFFSET
+    if internal > MAX_PORT:
+        internal = int(port) - INTERNAL_OFFSET
+    return internal
 
 
 def _rewrite_compose_ports(content, main_domain):
@@ -331,7 +338,7 @@ def _rewrite_compose_ports(content, main_domain):
         host_port = m.group(3)
         rest = m.group(4)
         close = m.group(5)
-        internal_port = int(host_port) + INTERNAL_OFFSET
+        internal_port = _get_internal_port(host_port)
         return f'{pre}{quote}127.0.0.1:{internal_port}{rest}{close}'
     return re.sub(r'^(\s+-\s*)("?)(\d+)(:\d+(?:/\w+)?)("?)$',
                   _rewrite, content, flags=re.MULTILINE)
@@ -343,7 +350,7 @@ def _ensure_caddy_routing(name, port, domain, main_domain, root_path):
     apps_d = os.path.join(root_path, 'apps.d', 'caddy')
     os.makedirs(apps_d, exist_ok=True)
     safe_name = name.lower().replace('_', '-').replace(' ', '-')
-    internal_port = int(port) + INTERNAL_OFFSET
+    internal_port = _get_internal_port(port)
 
     if domain and not domain.startswith(main_domain + '/'):
         entry = f'{domain} {{\n    reverse_proxy 127.0.0.1:{internal_port}\n}}\n'
@@ -440,7 +447,7 @@ def deploy_app(name):
         safe_name = name.lower().replace('_', '-').replace(' ', '-')
         subs['SUBPATH'] = ''
         subs['PUBLIC_URL'] = f'https://{main_domain}:{port}/' if main_domain else ''
-        subs['INTERNAL_PORT'] = str(int(port) + INTERNAL_OFFSET)
+        subs['INTERNAL_PORT'] = str(_get_internal_port(port))
         resolved = StringTemplate(resolved).safe_substitute(**subs)
         resolved = _rewrite_compose_ports(resolved, main_domain)
         with open(compose_path, 'w') as f:
@@ -547,6 +554,15 @@ def deployed_up(name):
     main_domain = os.environ.get('DOMAIN', '').strip()
     try:
         compose_path = os.path.join(current_app.root_path, 'deployments', name, 'docker-compose.yaml')
+        if not os.path.isfile(compose_path):
+            template_path = os.path.join(current_app.root_path, 'templates', 'apps', name, 'docker-compose.yaml')
+            if os.path.isfile(template_path):
+                deploy_dir = os.path.join(current_app.root_path, 'deployments', name)
+                os.makedirs(deploy_dir, exist_ok=True)
+                with open(template_path) as f:
+                    content = f.read()
+                with open(compose_path, 'w') as f:
+                    f.write(content)
         if os.path.isfile(compose_path):
             with open(compose_path) as f:
                 content = f.read()
