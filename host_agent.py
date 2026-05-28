@@ -293,6 +293,9 @@ class DeployHandler(BaseHTTPRequestHandler):
             try:
                 root = os.path.dirname(DATA_FILE)
                 caddyfile = os.path.join(root, 'Caddyfile')
+                if not os.path.isfile(caddyfile):
+                    self._send_json({'ok': True, 'skipped': True, 'reason': 'no Caddyfile (no domain configured)'})
+                    return
                 result = subprocess.run(
                     ['caddy', 'reload', '--config', caddyfile],
                     capture_output=True, text=True, timeout=10

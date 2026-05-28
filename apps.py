@@ -364,10 +364,12 @@ def _caddy_reload(root_path):
         return
     except Exception:
         pass
+    caddyfile = os.path.join(root_path, 'Caddyfile')
+    if not os.path.isfile(caddyfile):
+        return
     try:
         subprocess.run(
-            ['caddy', 'reload', '--config',
-             os.path.join(root_path, 'Caddyfile')],
+            ['caddy', 'reload', '--config', caddyfile],
             capture_output=True, text=True, timeout=10)
     except Exception:
         pass
