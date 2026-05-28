@@ -1,6 +1,0 @@
-{
-  "name": "Netdata",
-  "description": "Real-time system performance monitoring",
-  "icon": "fas fa-chart-line",
-  "port": 19999
-}

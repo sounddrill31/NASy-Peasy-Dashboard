@@ -1,7 +1,0 @@
-services:
-  nitter:
-    image: zedeus/nitter:latest
-    container_name: nasypeasy-nitter
-    ports:
-      - "8086:8080"
-    restart: unless-stopped

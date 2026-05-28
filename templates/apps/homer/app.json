@@ -1,6 +1,0 @@
-{
-  "name": "Homer",
-  "description": "A dead simple static homepage for your server",
-  "icon": "fas fa-home",
-  "port": 8082
-}
