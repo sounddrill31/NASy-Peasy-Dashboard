@@ -28,12 +28,24 @@ Nasypeasy provides a simple, mono-styled dashboard to manage your Podman contain
    ```
 4. Start the dashboard:
    ```bash
-   pixi run server    # containerized
+   pixi run up       # containerized
+   pixi run fresh    # containerized (rebuild)
    # or
-   pixi run start     # directly on host
+   pixi run start    # directly on host (dev)
    ```
 
 Access the dashboard at `http://localhost:5000`.
+
+### Firewall Ports
+
+Per-app services get SSL via Caddy on the **same port** the container uses (e.g. container port 3001 → `https://hole.undo.it:3001`). No special port range needed. Open only the container ports you need:
+
+```bash
+# OS firewall (firewalld) — example for port 3001
+sudo firewall-cmd --add-port=3001/tcp --permanent && sudo firewall-cmd --reload
+```
+
+For cloud providers (Oracle Cloud, AWS, etc.), add the same ports to your instance's security list / security group.
 
 ## Creating a User
 

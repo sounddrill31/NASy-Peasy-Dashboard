@@ -19,6 +19,8 @@ The target users are hobbyist self-hosters who need a minimalistic, single-pane-
 #### 2.2 System Environment
 - **Backend:** Python, Flask, DuckDB
 - **Frontend:** HTML/Tailwind CSS (Mono design system)
+- **Reverse Proxy / TLS:** Caddy
+- **Web Server:** nginx (dashboard only)
 - **Container Engine:** Podman
 - **Networking:** Tailscale
 - **Package Management:** Pixi
@@ -65,10 +67,12 @@ stateDiagram-v2
     ReviewingCompose --> EditingCompose: Modify compose definition
     EditingCompose --> DeployingApp: Confirm deploy
     DeployingApp --> ComposeExecution: podman-compose up -d
-    ComposeExecution --> ManagingDeployed: Dashboard shows running app
+    ComposeExecution --> CaddyRouting: Caddy writes per-app SSL snippet
+    CaddyRouting --> ManagingDeployed: Dashboard shows running app
     ManagingDeployed --> ViewingLogs: Poll podman logs
     ManagingDeployed --> StoppingApp: podman-compose down
-    StoppingApp --> AppRepository
+    StoppingApp --> RemovingCaddyRoute: Caddy snippet removed
+    RemovingCaddyRoute --> AppRepository
     ViewingLogs --> ManagingDeployed
 ```
 

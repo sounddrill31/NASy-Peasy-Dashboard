@@ -8,5 +8,9 @@ _host_data.json
 *.log
 deployments/
 Caddyfile
+nginx.conf
+nginx.pid
+ssl/
+logs/
 apps.d/
 repos/

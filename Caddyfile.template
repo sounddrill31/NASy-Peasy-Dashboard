@@ -1,0 +1,5 @@
+__DOMAIN__ {
+    reverse_proxy localhost:8069
+}
+
+import apps.d/caddy/*.conf

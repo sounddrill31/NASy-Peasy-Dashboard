@@ -1,0 +1,25 @@
+error_log __ROOT__/logs/nginx-error.log;
+pid __ROOT__/logs/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include __ROOT__/.pixi/envs/default/etc/nginx/mime.types;
+    access_log __ROOT__/logs/nginx-access.log;
+
+    server {
+        listen 8069;
+        absolute_redirect off;
+
+        location / {
+            proxy_pass http://localhost:5000;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        include __ROOT__/apps.d/nginx/*.conf;
+    }
+}

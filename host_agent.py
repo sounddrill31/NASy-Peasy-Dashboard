@@ -267,16 +267,23 @@ class DeployHandler(BaseHTTPRequestHandler):
             name = self.path.split('/')[3]
             remove_volumes = payload.get('remove_volumes', False)
             compose_file = get_compose_path(name)
-            if not os.path.isfile(compose_file):
-                self._send_json({'error': 'compose file not found'}, 400)
-                return
             try:
-                cmd = [SYSTEM_PODMAN_COMPOSE, '-f', compose_file, '-p', f'nasypeasy-{name}', 'down']
-                if remove_volumes:
-                    cmd.append('-v')
-                subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-                subprocess.run([SYSTEM_PODMAN, 'network', 'rm', f'{name}_default'],
-                               capture_output=True, text=True, timeout=10)
+                if os.path.isfile(compose_file):
+                    cmd = [SYSTEM_PODMAN_COMPOSE, '-f', compose_file, '-p', f'nasypeasy-{name}', 'down']
+                    if remove_volumes:
+                        cmd.append('-v')
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                    if result.returncode != 0:
+                        self._send_json({'error': result.stderr or result.stdout}, 500)
+                        return
+                    subprocess.run([SYSTEM_PODMAN, 'network', 'rm', f'{name}_default'],
+                                   capture_output=True, text=True, timeout=10)
+                else:
+                    container = f'nasypeasy-{name}'
+                    subprocess.run([SYSTEM_PODMAN, 'stop', container],
+                                   capture_output=True, text=True, timeout=15)
+                    subprocess.run([SYSTEM_PODMAN, 'rm', container],
+                                   capture_output=True, text=True, timeout=15)
                 self._send_json({'ok': True})
             except Exception as e:
                 self._send_json({'error': str(e)}, 500)
@@ -285,23 +292,33 @@ class DeployHandler(BaseHTTPRequestHandler):
         if self.path == '/api/caddy-reload':
             try:
                 root = os.path.dirname(DATA_FILE)
-                caddy_bin = os.path.join(root, '.pixi', 'envs', 'default', 'bin', 'caddy')
                 caddyfile = os.path.join(root, 'Caddyfile')
-                if os.path.isfile(caddyfile):
+                result = subprocess.run(
+                    ['caddy', 'reload', '--config', caddyfile],
+                    capture_output=True, text=True, timeout=10
+                )
+                self._send_json({'ok': result.returncode == 0, 'output': result.stderr or result.stdout})
+            except Exception as e:
+                self._send_json({'error': str(e)}, 500)
+            return
+
+        if self.path == '/api/nginx-reload':
+            try:
+                root = os.path.dirname(DATA_FILE)
+                nginx_bin = os.path.join(root, '.pixi', 'envs', 'default', 'bin', 'nginx')
+                nginx_conf = os.path.join(root, 'nginx.conf')
+                result = subprocess.run(
+                    [nginx_bin, '-s', 'reload', '-c', nginx_conf],
+                    capture_output=True, text=True, timeout=10
+                )
+                if result.returncode == 0:
+                    self._send_json({'ok': True})
+                else:
                     result = subprocess.run(
-                        [caddy_bin, 'reload', '--config', caddyfile],
+                        [nginx_bin, '-c', nginx_conf],
                         capture_output=True, text=True, timeout=10
                     )
-                    if result.returncode == 0:
-                        self._send_json({'ok': True})
-                    else:
-                        result = subprocess.run(
-                            [caddy_bin, 'start', '--config', caddyfile],
-                            capture_output=True, text=True, timeout=10
-                        )
-                        self._send_json({'ok': result.returncode == 0, 'output': result.stderr or result.stdout})
-                else:
-                    self._send_json({'ok': False, 'error': 'Caddyfile not found'})
+                    self._send_json({'ok': result.returncode == 0, 'output': result.stderr or result.stdout})
             except Exception as e:
                 self._send_json({'error': str(e)}, 500)
             return

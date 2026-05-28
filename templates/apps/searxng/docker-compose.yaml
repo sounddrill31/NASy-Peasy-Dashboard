@@ -7,7 +7,7 @@ services:
     volumes:
       - searxng-data:/etc/searxng:rw
     environment:
-      - SEARXNG_BASE_URL=http://localhost:8888/
+      - SEARXNG_BASE_URL=$PUBLIC_URL
     cap_add:
       - CHOWN
     restart: unless-stopped

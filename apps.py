@@ -316,67 +316,68 @@ def app_detail(name):
                            volumes=volumes,
                            volume_map_json=json.dumps(volume_map),
                            domain=domain,
-                           main_domain=os.environ.get('CADDY_DOMAIN', '').strip())
+                            main_domain=os.environ.get('DOMAIN', '').strip())
+
+
+INTERNAL_OFFSET = 10000
+
+
+def _rewrite_compose_ports(content, main_domain):
+    if not main_domain:
+        return content
+    def _rewrite(m):
+        pre = m.group(1)
+        quote = m.group(2)
+        host_port = m.group(3)
+        rest = m.group(4)
+        close = m.group(5)
+        internal_port = int(host_port) + INTERNAL_OFFSET
+        return f'{pre}{quote}127.0.0.1:{internal_port}{rest}{close}'
+    return re.sub(r'^(\s+-\s*)("?)(\d+)(:\d+(?:/\w+)?)("?)$',
+                  _rewrite, content, flags=re.MULTILINE)
 
 
 def _ensure_caddy_routing(name, port, domain, main_domain, root_path):
-    apps_d = os.path.join(root_path, 'apps.d')
+    if not main_domain:
+        return
+    apps_d = os.path.join(root_path, 'apps.d', 'caddy')
+    os.makedirs(apps_d, exist_ok=True)
     safe_name = name.lower().replace('_', '-').replace(' ', '-')
+    internal_port = int(port) + INTERNAL_OFFSET
 
-    if domain:
-        sites_d = os.path.join(apps_d, 'sites')
-        os.makedirs(sites_d, exist_ok=True)
-        entry = f'{domain} {{\n    tls internal\n    reverse_proxy localhost:{port}\n}}\n'
-        app_caddy = os.path.join(sites_d, f'{safe_name}.caddy')
-        if not os.path.isfile(app_caddy) or open(app_caddy).read() != entry:
-            with open(app_caddy, 'w') as f:
-                f.write(entry)
-    elif main_domain:
-        paths_d = os.path.join(apps_d, 'paths')
-        os.makedirs(paths_d, exist_ok=True)
-        entry = f'handle_path /{safe_name}/* {{\n    reverse_proxy localhost:{port}\n}}\n'
-        app_caddy = os.path.join(paths_d, f'{safe_name}.caddy')
-        if not os.path.isfile(app_caddy) or open(app_caddy).read() != entry:
-            with open(app_caddy, 'w') as f:
-                f.write(entry)
+    if domain and not domain.startswith(main_domain + '/'):
+        entry = f'{domain} {{\n    reverse_proxy 127.0.0.1:{internal_port}\n}}\n'
+    else:
+        entry = f'{main_domain}:{port} {{\n    reverse_proxy 127.0.0.1:{internal_port}\n}}\n'
 
+    conf_file = os.path.join(apps_d, f'{safe_name}.conf')
+    current = open(conf_file).read() if os.path.isfile(conf_file) else ''
+    if current != entry:
+        with open(conf_file, 'w') as f:
+            f.write(entry)
+        _caddy_reload(root_path)
+
+
+def _caddy_reload(root_path):
     try:
         http_requests.post(f'{AGENT_URL}/api/caddy-reload', timeout=10)
         return
     except Exception:
         pass
-
-    caddyfile = os.path.join(root_path, 'Caddyfile')
-    if not os.path.isfile(caddyfile):
-        return
     try:
-        caddy_bin = os.path.join(root_path, '.pixi', 'envs', 'default', 'bin', 'caddy')
-        subprocess.run([caddy_bin, 'reload', '--config', caddyfile],
-                       capture_output=True, text=True, timeout=10)
+        subprocess.run(
+            ['caddy', 'reload', '--config',
+             os.path.join(root_path, 'Caddyfile')],
+            capture_output=True, text=True, timeout=10)
     except Exception:
-        try:
-            caddy_bin = os.path.join(root_path, '.pixi', 'envs', 'default', 'bin', 'caddy')
-            subprocess.run([caddy_bin, 'start', '--config', caddyfile],
-                           capture_output=True, text=True, timeout=10)
-        except Exception:
-            pass
+        pass
 
 
 def _async_deploy(app_dir, deploy_dir, name, meta, domain, root_path):
-    caddy_path = os.path.join(app_dir, 'Caddyfile')
-    caddy_deploy = os.path.join(deploy_dir, 'Caddyfile')
-    if os.path.isfile(caddy_path):
-        with open(caddy_path) as f:
-            caddy_content = f.read()
-        with open(caddy_deploy, 'w') as f:
-            f.write(caddy_content)
-
     port = meta.get('port', 0)
-    main_domain = os.environ.get('CADDY_DOMAIN', '').strip()
-
+    main_domain = os.environ.get('DOMAIN', '').strip()
     if port:
         _ensure_caddy_routing(name, port, domain, main_domain, root_path)
-
     db = get_db()
     try:
         payload = {'folder': name}
@@ -409,13 +410,10 @@ def deploy_app(name):
 
     compose_edited = request.form.get('compose', '')
     domain = request.form.get('domain', '').strip()
-    main_domain = os.environ.get('CADDY_DOMAIN', '').strip()
+    main_domain = os.environ.get('DOMAIN', '').strip()
     port = meta.get('port', 0)
 
     effective_domain = domain
-    if not effective_domain and main_domain and port:
-        subdomain = name.lower().replace('_', '-').replace(' ', '-')
-        effective_domain = f'{main_domain}/{subdomain}'
 
     deploy_dir = os.path.join(current_app.root_path, 'deployments', name)
     os.makedirs(deploy_dir, exist_ok=True)
@@ -434,8 +432,15 @@ def deploy_app(name):
             f.write(compose_content)
         volume_map = get_volume_map()
         resolved = substitute_volumes(compose_content, volume_map)
+        subs = {}
         if domain:
-            resolved = StringTemplate(resolved).safe_substitute(DOMAIN=domain)
+            subs['DOMAIN'] = domain
+        safe_name = name.lower().replace('_', '-').replace(' ', '-')
+        subs['SUBPATH'] = ''
+        subs['PUBLIC_URL'] = f'https://{main_domain}:{port}/' if main_domain else ''
+        subs['INTERNAL_PORT'] = str(int(port) + INTERNAL_OFFSET)
+        resolved = StringTemplate(resolved).safe_substitute(**subs)
+        resolved = _rewrite_compose_ports(resolved, main_domain)
         with open(compose_path, 'w') as f:
             f.write(resolved)
 
@@ -484,7 +489,8 @@ def deployed_list():
         if app['folder'] in live_states:
             app['status'] = live_states[app['folder']]
         deployed.append(app)
-    return render_template('deployed.html', deployed=deployed)
+    return render_template('deployed.html', deployed=deployed,
+                           main_domain=os.environ.get('DOMAIN', '').strip())
 
 
 @apps_bp.route('/deployed/<name>/status')
@@ -544,7 +550,7 @@ def deployed_up(name):
             db = get_db()
             row = db.execute('SELECT port, domain FROM deployed_apps WHERE folder = ?', [name]).fetchone()
             if row and row[0]:
-                main_domain = os.environ.get('CADDY_DOMAIN', '').strip()
+                main_domain = os.environ.get('DOMAIN', '').strip()
                 _ensure_caddy_routing(name, row[0], row[1] or '', main_domain, current_app.root_path)
             db.execute('UPDATE deployed_apps SET status = ? WHERE folder = ?', ['running', name])
             flash("App started", "success")
@@ -573,15 +579,10 @@ def deployed_delete(name):
                 shutil.rmtree(deploy_dir, ignore_errors=True)
 
             safe_name = name.lower().replace('_', '-').replace(' ', '-')
-            for sub in ('paths', 'sites'):
-                f = os.path.join(current_app.root_path, 'apps.d', sub, f'{safe_name}.caddy')
-                if os.path.isfile(f):
-                    os.remove(f)
-
-            try:
-                http_requests.post(f'{AGENT_URL}/api/caddy-reload', timeout=10)
-            except Exception:
-                pass
+            f = os.path.join(current_app.root_path, 'apps.d', 'caddy', f'{safe_name}.conf')
+            if os.path.isfile(f):
+                os.remove(f)
+                _caddy_reload(current_app.root_path)
 
             flash("App deleted", "success")
     except Exception as e:

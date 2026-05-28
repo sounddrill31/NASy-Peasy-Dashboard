@@ -7,7 +7,6 @@ from flask_login import login_required
 from flask_wtf.csrf import CSRFProtect
 
 app = Flask(__name__)
-# In production, this should be an environment variable. Using a static fallback for simplicity.
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "nasypeasy-dev-secret-key-12345")
 csrf = CSRFProtect(app)
 
