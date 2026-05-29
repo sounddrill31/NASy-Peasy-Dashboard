@@ -45,6 +45,7 @@ def _repo_dir(source):
 def import_apps_from_source(source):
     """Import apps from a local folder path or git repo URL.
     Each subfolder must contain app.json + docker-compose.yaml.
+    Clones to repos/ (gitignored). Never overwrites existing apps.
     Returns (count, error_messages).
     """
     try:
@@ -90,7 +91,8 @@ def import_apps_from_source(source):
                 continue
             dest = os.path.join(apps_dir, entry)
             if os.path.exists(dest):
-                shutil.rmtree(dest)
+                # Never overwrite or delete existing apps
+                continue
             shutil.copytree(app_dir, dest)
             imported += 1
 
@@ -207,13 +209,11 @@ def source_remove(source_id):
         repo_dir = _repo_dir(row[0])
         if os.path.isdir(repo_dir):
             deployed = {r[0] for r in db.execute('SELECT folder FROM deployed_apps').fetchall()}
-
             apps_dir = os.path.join(current_app.root_path, 'templates', 'apps')
             for entry in sorted(os.listdir(repo_dir)):
                 app_folder = os.path.join(apps_dir, entry)
                 if os.path.isdir(app_folder) and entry not in deployed:
                     shutil.rmtree(app_folder, ignore_errors=True)
-
             shutil.rmtree(repo_dir, ignore_errors=True)
     db.execute('DELETE FROM app_sources WHERE id = ?', [source_id])
     flash("Source removed. Non-deployed apps from this source cleaned up.", "success")
