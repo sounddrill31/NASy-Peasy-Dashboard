@@ -45,8 +45,8 @@ def _repo_dir(source):
 def import_apps_from_source(source):
     """Import apps from a local folder path or git repo URL.
     Each subfolder must contain app.json + docker-compose.yaml.
-    Clones to repos/ (gitignored). Never overwrites existing apps.
-    Returns (count, error_messages).
+    Clones to repos/ (gitignored). Updates existing, imports new.
+    Returns (new, updated, unchanged, errors).
     """
     try:
         if source.startswith(('http://', 'https://', 'git@', 'git://')):
@@ -61,24 +61,30 @@ def import_apps_from_source(source):
                     r = subprocess.run(['git', 'clone', '--depth', '1', source, repo_dir],
                                        capture_output=True, text=True, timeout=120)
             except FileNotFoundError:
-                return 0, "Git is not accessible from the web server. Run: sudo dnf install git (or apt install git)"
+                return 0, 0, 0, "Git not accessible. Install git and try again."
             if r.returncode != 0:
-                return 0, f"Git {'pull' if repo_exists else 'clone'} failed: {r.stderr.strip()}"
+                return 0, 0, 0, f"Git {'pull' if repo_exists else 'clone'} failed: {r.stderr.strip()}"
             scan_dir = repo_dir
         elif os.path.isdir(source):
             scan_dir = source
         else:
-            return 0, "Invalid source: not a directory or git repo URL"
+            return 0, 0, 0, "Invalid source: not a directory or git repo URL"
 
         apps_dir = os.path.join(current_app.root_path, 'templates', 'apps')
         os.makedirs(apps_dir, exist_ok=True)
-        imported = 0
-        errs = []
 
+        # Snapshot existing apps before import
+        existing = set()
+        for entry in os.listdir(apps_dir):
+            if os.path.isdir(os.path.join(apps_dir, entry)):
+                existing.add(entry)
+
+        # Collect valid source apps
+        source_entries = []
+        errs = []
         for entry in sorted(os.listdir(scan_dir)):
             app_dir = os.path.join(scan_dir, entry)
             meta_path = os.path.join(app_dir, 'app.json')
-            compose_path = os.path.join(app_dir, 'docker-compose.yaml')
             if not os.path.isdir(app_dir) or not os.path.isfile(meta_path):
                 continue
             try:
@@ -89,16 +95,24 @@ def import_apps_from_source(source):
             except Exception as e:
                 errs.append(f"{entry}: {e}")
                 continue
+            source_entries.append(entry)
+
+        new_c = 0
+        updated_c = 0
+        for entry in source_entries:
+            app_dir = os.path.join(scan_dir, entry)
             dest = os.path.join(apps_dir, entry)
             if os.path.exists(dest):
-                # Never overwrite or delete existing apps
-                continue
+                shutil.rmtree(dest)
+                updated_c += 1
+            else:
+                new_c += 1
             shutil.copytree(app_dir, dest)
-            imported += 1
 
-        return imported, '; '.join(errs) if errs else ''
+        unchanged_c = len(existing - set(source_entries))
+        return new_c, updated_c, unchanged_c, '; '.join(errs) if errs else ''
     except Exception as e:
-        return 0, str(e)
+        return 0, 0, 0, str(e)
 
 
 def get_app_files(app_dir):
@@ -185,10 +199,18 @@ def save_source(url, status='added', count=0, error=''):
 def list_apps():
     repo_url = request.args.get('repo_url')
     if repo_url:
-        imported, errors = import_apps_from_source(repo_url)
-        if imported:
-            save_source(repo_url, 'success', imported)
-            flash(f"Imported {imported} app(s) from source", "success")
+        new_c, upd_c, unc_c, errors = import_apps_from_source(repo_url)
+        total = new_c + upd_c
+        if total:
+            save_source(repo_url, 'success', total)
+            parts = []
+            if upd_c:
+                parts.append(f"{upd_c} updated")
+            if new_c:
+                parts.append(f"{new_c} new")
+            if unc_c:
+                parts.append(f"{unc_c} unchanged")
+            flash(f"Imported from source: {', '.join(parts)}", "success")
         elif errors:
             save_source(repo_url, 'error', 0, errors)
             flash(f"Import errors: {errors}", "error")
@@ -246,17 +268,33 @@ def source_move(source_id, direction):
 def refresh_all():
     sources = get_sources()
     results = []
+    skipped = []
     for src in sources:
-        imported, errors = import_apps_from_source(src['url'])
-        if imported:
-            save_source(src['url'], 'success', imported)
-            results.append(f"{src['url']}: {imported} app(s)")
-        elif errors:
+        new_c, upd_c, unc_c, errors = import_apps_from_source(src['url'])
+        total = new_c + upd_c
+        # Total failure — source unreachable
+        if errors and total == 0 and unc_c == 0:
             save_source(src['url'], 'error', 0, errors)
-            results.append(f"{src['url']}: ERROR — {errors}")
-        else:
-            results.append(f"{src['url']}: no new apps")
-    flash("Refresh complete. " + " | ".join(results), "success" if not any('ERROR' in r for r in results) else "error")
+            skipped.append(src['url'])
+            continue
+        save_source(src['url'], 'success', total)
+        parts = []
+        if upd_c:
+            parts.append(f"{upd_c} updated")
+        if new_c:
+            parts.append(f"{new_c} new")
+        if unc_c:
+            parts.append(f"{unc_c} unchanged")
+        if errors:
+            parts.append(f"warnings: {errors}")
+        msg = f"{src['url']}: {', '.join(parts)}" if parts else f"{src['url']}: no source apps found"
+        results.append(msg)
+    msg = "Refresh complete."
+    if results:
+        msg += " " + " | ".join(results)
+    if skipped:
+        msg += f" {len(skipped)} source(s) skipped (unreachable)"
+    flash(msg, "success" if not skipped else "warning")
     return redirect(url_for('apps.list_apps'))
 
 
